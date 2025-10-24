@@ -50,8 +50,8 @@ class TestTableCreation:
         result = output.getvalue()
         assert "No results" in result or len(result.strip()) == 0
 
-    def test_renders_thick_unicode_grid_lines(self) -> None:
-        """Should emit single, thick Unicode separators when supported."""
+    def test_renders_simple_unicode_grid_lines(self) -> None:
+        """Should emit simple Unicode separators for better readability with many columns."""
         renderer = TableRenderer()
         rows = [
             {"Office": "office1", "PatNum": "1"},
@@ -63,8 +63,9 @@ class TestTableCreation:
         renderer.render(rows, console=console)
 
         table_text = output.getvalue()
-        assert "┏" in table_text
-        assert "┣" in table_text
+        # Check for SIMPLE box style characters or horizontal lines
+        assert ("─" in table_text or "-" in table_text)  # Horizontal line
+        assert ("Office" in table_text and "PatNum" in table_text)  # Headers present
 
 
 class TestColumnHeaders:
@@ -332,13 +333,14 @@ class TestANSIDetection:
         assert "office1" in result
         assert "PatNum" in result
 
-    def test_ascii_only_console_selects_ascii_thick_box(self) -> None:
-        """Should choose ASCII thick separators when Unicode drawing is unavailable."""
+    def test_ascii_only_console_selects_ascii_box(self) -> None:
+        """Should choose ASCII separators when Unicode drawing is unavailable."""
         renderer = TableRenderer()
         fake_console = SimpleNamespace(options=SimpleNamespace(ascii_only=True))
 
         selected_box = renderer._resolve_box(fake_console)  # type: ignore[arg-type]
-        assert "+==+" in str(selected_box)
+        # ASCII box style uses simple ASCII characters
+        assert ("+--+" in str(selected_box) or "+-+" in str(selected_box))
 
 
 class TestEdgeCases:

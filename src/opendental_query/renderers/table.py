@@ -143,6 +143,17 @@ class TableRenderer:
                 console.print(str(row))
             return None
 
+        # Warn if too many columns for comfortable terminal viewing
+        if len(columns) > 20:
+            console.print(
+                f"\n[yellow]⚠ Warning: {len(columns)} columns detected. "
+                f"Terminal display may be difficult to read.[/yellow]"
+            )
+            console.print(
+                "[yellow]💡 Tip: Consider using SELECT with specific columns, "
+                "or export to CSV for better viewing.[/yellow]\n"
+            )
+
         # Determine column alignments
         alignments = self._determine_alignments(rows, columns)
 
@@ -294,7 +305,7 @@ class TableRenderer:
             row_styles=["", "dim"],  # Alternating: normal white, dimmed gray
             border_style="cyan",
             box=self._resolve_box(console),
-            show_lines=True,
+            show_lines=True,  # Show lines between rows for Excel-like appearance
         )
 
         # Add columns with alignment
@@ -333,7 +344,7 @@ class TableRenderer:
 
     def _resolve_box(self, console: Console) -> Box:
         """
-        Choose a box style that guarantees thick single-line separators per cell.
+        Choose a box style that creates Excel-like grid lines.
 
         Args:
             console: Rich Console instance used for rendering
@@ -347,4 +358,5 @@ class TableRenderer:
         except Exception:
             ascii_only = False
 
-        return _ASCII_THICK_BOX if ascii_only else box.HEAVY
+        # Use ROUNDED for Excel-like appearance with visible grid lines
+        return box.ASCII if ascii_only else box.ROUNDED

@@ -52,13 +52,7 @@ To update, replace the old binary with the new release file.
 
 The commands below assume `opendental-query` (or `opendental-query.exe`) is available on your shell `PATH`. If it is not, prefix each command with the full path to the executable.
 
-### 1. Initialize Configuration
-
-```bash
-opendental-query config set-api-url https://api.opendental.com
-```
-
-### 2. Initialize Vault
+### 1. Initialize Vault
 
 ```bash
 opendental-query vault-init
@@ -68,7 +62,12 @@ opendental-query vault-init
 # - Global DeveloperKey
 ```
 
-### 3. Add Office Credentials
+**Note:** The API URL is automatically set to `https://api.opendental.com/api/v1` by default. If you need to use a different URL, you can set it with:
+```bash
+opendental-query config set-api-url https://your-custom-api-url.com/api/v1
+```
+
+### 2. Add Office Credentials
 
 ```bash
 opendental-query vault-add-office
@@ -78,7 +77,7 @@ opendental-query vault-add-office
 # - CustomerKey for that office
 ```
 
-### 4. Execute a Query
+### 3. Execute a Query
 
 ```bash
 opendental-query query

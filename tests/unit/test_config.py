@@ -27,7 +27,7 @@ class TestConfigLoad:
         assert config_path.exists()
         assert isinstance(config, AppConfig)
         assert config.config_dir == config_dir
-        assert config.api_base_url == "https://api.opendental.com"
+        assert config.api_base_url == "https://api.opendental.com/api/v1"
         assert config.max_concurrent_requests == 10
         assert config.query_timeout_seconds == 300
 

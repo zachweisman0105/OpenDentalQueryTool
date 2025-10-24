@@ -53,7 +53,7 @@ class ConfigManager:
             config_data["config_dir"] = str(self.config_path.parent)
 
         # Validate HTTPS
-        api_url = config_data.get("", "")
+        api_url = config_data.get("api_base_url", "")
         if api_url.startswith("http://"):
             raise ValueError(f"HTTPS required for API base URL. Found insecure HTTP: {api_url}")
         if not api_url.startswith("https://"):
@@ -100,7 +100,7 @@ class ConfigManager:
         """
         default_config = AppConfig(
             config_dir=self.config_path.parent,
-            api_base_url="https://api.opendental.com/api/v1/queries/ShortQuery",
+            api_base_url="https://api.opendental.com/api/v1",
             max_concurrent_requests=10,
             query_timeout_seconds=300,
         )
@@ -189,7 +189,7 @@ class ConfigManager:
         """Reset configuration to default values."""
         self._config = AppConfig(
             config_dir=self.config_path.parent,
-            api_base_url="https://api.opendental.com",
+            api_base_url="https://api.opendental.com/api/v1",
             max_concurrent_requests=10,
             query_timeout_seconds=300,
         )
@@ -201,7 +201,7 @@ class ConfigManager:
             self._config = self.load()
 
         defaults = {
-            "api_base_url": "https://api.opendental.com",
+            "api_base_url": "https://api.opendental.com/api/v1",
             "max_concurrent_requests": 10,
             "query_timeout_seconds": 300,
             "vault_auto_lock_seconds": 1800,  # 30 minutes
