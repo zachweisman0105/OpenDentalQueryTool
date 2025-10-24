@@ -1,31 +1,52 @@
 # OpenDental Multi-Office Query Tool
 
-A local, HIPAA-compliant CLI tool for executing SQL queries across multiple OpenDental office instances simultaneously. Releases ship as self-contained binaries built with PyInstaller, so end users never need to install Python.
+A local, HIPAA-compliant CLI tool for executing SQL queries across multiple OpenDental office instances simultaneously.  
+Releases ship as self-contained binaries built with PyInstaller—no Python installation required.
 
 ## Features
 
-- **HIPAA Compliant**: Zero PHI logging, encrypted credential storage, and full audit trails
-- **Multi-Office Support**: Run the same query across every office or a targeted subset in parallel
-- **Secure Vault**: Argon2id + AES-256-GCM encryption for API credentials
-- **Excel-Style Output**: Rich table rendering with optional CSV export
-- **Resilient Networking**: Automatic retries with exponential backoff and jitter
-- **Comprehensive Logging**: 90-day audit log retention with hardened defaults
+- **HIPAA Compliant**: Zero PHI logging, encrypted credential storage, and full audit trails  
+- **Multi-Office Support**: Run the same query across all or selected offices in parallel  
+- **Secure Vault**: Argon2id + AES-256-GCM encryption for credentials  
+- **Excel-Style Output**: Rich table rendering with optional CSV export  
+- **Resilient Networking**: Automatic retries with backoff and jitter  
+- **Comprehensive Logging**: 90-day audit log retention with hardened defaults  
 
 ## Requirements
 
-- OpenDental Remote API access with valid credentials
-- HTTPS-accessible OpenDental API endpoint
-- Windows 10+ or macOS 13+ with permission to run downloaded executables
-- Network connectivity to every office you plan to query
+- OpenDental Remote API access with valid credentials  
+- HTTPS-accessible OpenDental API endpoint  
+- Windows 10+ or macOS 13+  
+- Network connectivity to every office queried  
 
-## Installation (PyInstaller Bundle)
+## Installation (Standalone Executable)
 
-1. Download the latest standalone package for your operating system from the project's releases (look for assets named `opendental-query-<version>-windows.zip` or `opendental-query-<version>-macos.tar.gz`). Each asset is the PyInstaller bundle of the CLI.
-2. Extract the archive to the directory where you want to keep the tool (for example, `C:\Program Files\OpenDentalQuery\` on Windows or `/Applications/OpenDentalQuery/` on macOS).
-3. Windows: run `opendental-query.exe` from PowerShell or Command Prompt. macOS: make the binary executable (`chmod +x opendental-query`) and run it from Terminal (`./opendental-query`).
-4. Optionally add the extraction directory to your `PATH` so you can launch `opendental-query` from any location.
+1. Download the latest binary for your operating system from the [Releases](../../releases) page:  
+   - **Windows:** `opendental-query-windows.exe`  
+   - **macOS:** `opendental-query-macos`  
+   - **Linux:** `opendental-query-linux`  
 
-To update, replace the existing executable with the latest download.
+2. Place the file in your preferred directory, such as:  
+   - `C:\Program Files\OpenDentalQuery\` (Windows)  
+   - `/Applications/OpenDentalQuery/` (macOS)  
+
+3. **Windows:**  
+   - Run directly via PowerShell or Command Prompt:  
+     ```powershell
+     opendental-query-windows.exe
+     ```
+
+   **macOS:**  
+   - Make the file executable and remove quarantine:  
+     ```bash
+     chmod +x opendental-query-macos
+     xattr -d com.apple.quarantine ./opendental-query-macos
+     ./opendental-query-macos
+     ```
+
+4. (Optional) Add the directory to your `PATH` to run the command globally.
+
+To update, replace the old binary with the new release file.
 
 ## Quick Start
 
