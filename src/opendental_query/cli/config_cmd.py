@@ -13,7 +13,22 @@ console = Console()
 logger = get_logger(__name__)
 
 
-@click.group(name="config")
+class AliasedGroup(click.Group):
+    """Custom Click Group that supports command aliases."""
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        """Override to support command aliases."""
+        # Define aliases mapping
+        aliases = {
+            "ls": "list",
+        }
+        
+        # Check if cmd_name is an alias
+        actual_name = aliases.get(cmd_name, cmd_name)
+        return super().get_command(ctx, actual_name)
+
+
+@click.group(name="config", cls=AliasedGroup)
 def config_group() -> None:
     """Manage application configuration settings."""
     pass

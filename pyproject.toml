@@ -52,7 +52,25 @@ packaging = [
 
 [project.scripts]
 opendental-query = "opendental_query.cli.main:cli"
+# Main command shortcuts
 Query = "opendental_query.cli.query_cmd:query_command"
+Vault = "opendental_query.cli.shortcuts:vault_shortcut"
+Config = "opendental_query.cli.shortcuts:config_shortcut"
+Update = "opendental_query.cli.shortcuts:update_shortcut"
+# Vault subcommand shortcuts
+VaultInit = "opendental_query.cli.shortcuts:vault_init_shortcut"
+VaultAdd = "opendental_query.cli.shortcuts:vault_add_shortcut"
+VaultRemove = "opendental_query.cli.shortcuts:vault_remove_shortcut"
+VaultList = "opendental_query.cli.shortcuts:vault_list_shortcut"
+VaultUpdateKey = "opendental_query.cli.shortcuts:vault_update_key_shortcut"
+VaultClear = "opendental_query.cli.shortcuts:vault_clear_shortcut"
+VaultDestroy = "opendental_query.cli.shortcuts:vault_destroy_shortcut"
+# Config subcommand shortcuts
+ConfigGet = "opendental_query.cli.shortcuts:config_get_shortcut"
+ConfigSet = "opendental_query.cli.shortcuts:config_set_shortcut"
+ConfigList = "opendental_query.cli.shortcuts:config_list_shortcut"
+ConfigReset = "opendental_query.cli.shortcuts:config_reset_shortcut"
+ConfigPath = "opendental_query.cli.shortcuts:config_path_shortcut"
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]

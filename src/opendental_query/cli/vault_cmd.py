@@ -12,13 +12,35 @@ from opendental_query.core.vault import VaultManager
 console = Console()
 
 
-@click.group()
+class AliasedGroup(click.Group):
+    """Custom Click Group that supports command aliases."""
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        """Override to support command aliases."""
+        # Define aliases mapping
+        aliases = {
+            "add": "add-office",
+            "remove": "remove-office",
+            "rm": "remove-office",
+            "list": "list-offices",
+            "ls": "list-offices",
+            "update-key": "update-developer-key",
+            "delete": "destroy",
+            "reset": "clear",
+        }
+        
+        # Check if cmd_name is an alias
+        actual_name = aliases.get(cmd_name, cmd_name)
+        return super().get_command(ctx, actual_name)
+
+
+@click.group(cls=AliasedGroup)
 def vault() -> None:
     """Manage encrypted credential vault."""
     pass
 
 
-@vault.command("init")
+@vault.command("init", short_help="Initialize a new encrypted vault")
 @click.option(
     "--vault-file",
     type=click.Path(path_type=Path),
@@ -79,21 +101,25 @@ def vault_init(ctx: click.Context, vault_file: Path | None) -> None:
         raise click.Abort()
 
 
-@vault.command("add-office")
-@click.argument("office_id")
+@vault.command("add-office", short_help="Add office credentials to vault")
+@click.argument("office_ids")
 @click.option(
     "--vault-file",
     type=click.Path(path_type=Path),
     help="Vault file path",
 )
 @click.pass_context
-def vault_add_office(ctx: click.Context, office_id: str, vault_file: Path | None) -> None:
+def vault_add_office(ctx: click.Context, office_ids: str, vault_file: Path | None) -> None:
     """Add office credentials to vault.
 
-    Adds CustomerKey for a specific office to the vault. You must unlock
+    Adds CustomerKey for one or more offices to the vault. You must unlock
     the vault with your master password first.
 
-    OFFICE_ID: Unique identifier for the office (e.g., 'main-office')
+    OFFICE_IDS: Comma-separated office identifiers (e.g., 'office1' or 'office1,office2,office3')
+    
+    Examples:
+        vault add-office office1
+        vault add-office office1,office2,office3
     """
     config_dir = ctx.obj["config_dir"]
 
@@ -105,13 +131,26 @@ def vault_add_office(ctx: click.Context, office_id: str, vault_file: Path | None
         console.print("[yellow]Run 'opendental-query vault init' first.[/yellow]")
         raise click.Abort()
 
-    # Prompt for CustomerKey
-    customer_key = click.prompt(f"CustomerKey for {office_id}")
+    # Parse office IDs (split by comma, strip whitespace)
+    office_list = [office_id.strip() for office_id in office_ids.split(",") if office_id.strip()]
+    
+    if not office_list:
+        console.print("[red]Error: No office IDs provided[/red]")
+        raise click.Abort()
 
-    # Prompt for master password
+    # Collect CustomerKeys for all offices
+    console.print(f"\n[bold]Adding {len(office_list)} office(s) to vault[/bold]\n")
+    office_credentials = {}
+    
+    for office_id in office_list:
+        customer_key = click.prompt(f"CustomerKey for {office_id}")
+        office_credentials[office_id] = customer_key
+
+    # Prompt for master password once
+    console.print()
     password = click.prompt("Master password", hide_input=True)
 
-    # Add office
+    # Add all offices
     try:
         manager = VaultManager(vault_file)
 
@@ -119,16 +158,33 @@ def vault_add_office(ctx: click.Context, office_id: str, vault_file: Path | None
             console.print("[red]Error: Incorrect password[/red]")
             raise click.Abort()
 
-        manager.add_office(office_id, customer_key)
+        # Add each office and track results
+        success_count = 0
+        failed_offices = []
+        
+        console.print()
+        for office_id, customer_key in office_credentials.items():
+            try:
+                manager.add_office(office_id, customer_key)
+                console.print(f"[green]✓[/green] Added credentials for office: {office_id}")
+                success_count += 1
+            except ValueError as e:
+                console.print(f"[red]✗[/red] Failed to add {office_id}: {e}")
+                failed_offices.append(office_id)
 
-        console.print(f"[green]✓[/green] Added credentials for office: {office_id}")
+        # Summary
+        console.print()
+        console.print(f"[bold]Summary:[/bold] {success_count}/{len(office_list)} office(s) added successfully")
+        
+        if failed_offices:
+            console.print(f"[yellow]Failed offices: {', '.join(failed_offices)}[/yellow]")
 
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise click.Abort()
 
 
-@vault.command("remove-office")
+@vault.command("remove-office", short_help="Remove office credentials from vault")
 @click.argument("office_id")
 @click.option(
     "--vault-file",
@@ -177,7 +233,7 @@ def vault_remove_office(ctx: click.Context, office_id: str, vault_file: Path | N
         raise click.Abort()
 
 
-@vault.command("list-offices")
+@vault.command("list-offices", short_help="List all offices in vault")
 @click.option(
     "--vault-file",
     type=click.Path(path_type=Path),
@@ -233,7 +289,7 @@ def vault_list_offices(ctx: click.Context, vault_file: Path | None) -> None:
         raise click.Abort()
 
 
-@vault.command("update-developer-key")
+@vault.command("update-developer-key", short_help="Update DeveloperKey in vault")
 @click.option(
     "--vault-file",
     type=click.Path(path_type=Path),
@@ -274,4 +330,152 @@ def vault_update_developer_key(ctx: click.Context, vault_file: Path | None) -> N
 
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
+        raise click.Abort()
+
+
+@vault.command("clear", short_help="Remove all offices from vault")
+@click.option(
+    "--vault-file",
+    type=click.Path(path_type=Path),
+    help="Vault file path",
+)
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Skip confirmation prompt",
+)
+@click.pass_context
+def vault_clear(ctx: click.Context, vault_file: Path | None, yes: bool) -> None:
+    """Remove all offices from vault.
+
+    Removes all office credentials from the vault while keeping the vault
+    file and DeveloperKey intact. This is useful for cleaning up offices
+    without having to reinitialize the entire vault.
+    
+    The DeveloperKey and master password remain unchanged.
+    """
+    config_dir = ctx.obj["config_dir"]
+
+    if vault_file is None:
+        vault_file = config_dir / DEFAULT_VAULT_FILE
+
+    if not vault_file.exists():
+        console.print(f"[red]Error: Vault not found at {vault_file}[/red]")
+        raise click.Abort()
+
+    # Prompt for master password
+    password = click.prompt("Master password", hide_input=True)
+
+    # Clear offices
+    try:
+        manager = VaultManager(vault_file)
+
+        if not manager.unlock(password):
+            console.print("[red]Error: Incorrect password[/red]")
+            raise click.Abort()
+
+        offices = manager.list_offices()
+
+        if not offices:
+            console.print("[yellow]Vault is already empty (no offices configured).[/yellow]")
+            return
+
+        # Confirm action
+        console.print(f"\n[bold red]Warning:[/bold red] This will remove all {len(offices)} office(s) from the vault:")
+        for office_id in sorted(offices):
+            console.print(f"  • {office_id}")
+        
+        console.print("\n[dim]The vault file and DeveloperKey will remain intact.[/dim]")
+        
+        if not yes:
+            if not click.confirm("\nAre you sure you want to remove all offices?"):
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        # Remove all offices
+        removed_count = 0
+        failed_offices = []
+        
+        console.print()
+        for office_id in offices:
+            try:
+                manager.remove_office(office_id)
+                console.print(f"[green]✓[/green] Removed office: {office_id}")
+                removed_count += 1
+            except ValueError as e:
+                console.print(f"[red]✗[/red] Failed to remove {office_id}: {e}")
+                failed_offices.append(office_id)
+
+        # Summary
+        console.print()
+        console.print(f"[bold]Summary:[/bold] {removed_count}/{len(offices)} office(s) removed")
+        
+        if failed_offices:
+            console.print(f"[yellow]Failed offices: {', '.join(failed_offices)}[/yellow]")
+        else:
+            console.print("[green]All offices removed successfully[/green]")
+
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise click.Abort()
+
+
+@vault.command("destroy", short_help="Completely delete the vault file")
+@click.option(
+    "--vault-file",
+    type=click.Path(path_type=Path),
+    help="Vault file path",
+)
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Skip confirmation prompt",
+)
+@click.pass_context
+def vault_destroy(ctx: click.Context, vault_file: Path | None, yes: bool) -> None:
+    """Completely delete the vault file.
+
+    Permanently deletes the entire vault file, including all office credentials
+    and the DeveloperKey. This action cannot be undone.
+    
+    After destroying the vault, you will need to run 'vault init' to create
+    a new vault before you can use vault commands again.
+    
+    Use 'vault clear' instead if you only want to remove offices while keeping
+    the vault and DeveloperKey.
+    """
+    config_dir = ctx.obj["config_dir"]
+
+    if vault_file is None:
+        vault_file = config_dir / DEFAULT_VAULT_FILE
+
+    if not vault_file.exists():
+        console.print(f"[yellow]Vault file does not exist at {vault_file}[/yellow]")
+        console.print("[dim]Nothing to destroy.[/dim]")
+        return
+
+    # Show warning
+    console.print(f"\n[bold red]⚠️  WARNING: DESTRUCTIVE ACTION ⚠️[/bold red]")
+    console.print(f"\nThis will [bold]permanently delete[/bold] the vault file at:")
+    console.print(f"  {vault_file}")
+    console.print("\n[red]All office credentials and the DeveloperKey will be lost.[/red]")
+    console.print("[red]This action cannot be undone.[/red]")
+    
+    if not yes:
+        console.print("\nType the vault file name to confirm deletion:")
+        confirmation = click.prompt(f"Enter '{vault_file.name}'")
+        
+        if confirmation != vault_file.name:
+            console.print("[yellow]Confirmation failed. Vault not destroyed.[/yellow]")
+            return
+
+    # Delete the vault file
+    try:
+        vault_file.unlink()
+        console.print(f"\n[green]✓[/green] Vault file deleted: {vault_file}")
+        console.print("\n[dim]Run 'vault init' to create a new vault.[/dim]")
+    except Exception as e:
+        console.print(f"\n[red]Error deleting vault file: {e}[/red]")
         raise click.Abort()

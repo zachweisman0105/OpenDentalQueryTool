@@ -52,6 +52,10 @@ To update, replace the old binary with the new release file.
 
 The commands below assume `opendental-query` (or `opendental-query.exe`) is available on your shell `PATH`. If it is not, prefix each command with the full path to the executable.
 
+> **💡 Tip:** The tool provides convenient single-word shortcuts for faster typing!  
+> For example: `VaultInit` instead of `opendental-query vault init`, or `Query` instead of `opendental-query query`  
+> See [Command Shortcuts Documentation](docs/COMMAND_ALIASES.md) for the complete list.
+
 ### 1. Initialize Vault
 
 ```bash
@@ -75,6 +79,14 @@ opendental-query vault-add-office
 # Prompts:
 # - Office ID (e.g., "MainOffice", "BranchA")
 # - CustomerKey for that office
+```
+
+**Tip:** Add multiple offices at once by providing comma-separated IDs:
+```bash
+opendental-query vault-add-office office1,office2,office3
+
+# Or using shortcuts:
+VaultAdd office1,office2,office3
 ```
 
 ### 3. Execute a Query

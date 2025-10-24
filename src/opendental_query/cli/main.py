@@ -18,7 +18,25 @@ from opendental_query.utils.startup_check import run_startup_checks
 console = Console()
 
 
-@click.group()
+class AliasedGroup(click.Group):
+    """Custom Click Group that supports command aliases."""
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        """Override to support command aliases."""
+        # Define aliases mapping for top-level commands
+        aliases = {
+            "q": "query",
+            "update": "check-update",
+            "v": "vault",
+            "c": "config",
+        }
+        
+        # Check if cmd_name is an alias
+        actual_name = aliases.get(cmd_name, cmd_name)
+        return super().get_command(ctx, actual_name)
+
+
+@click.group(cls=AliasedGroup)
 @click.version_option(version=__version__, prog_name="opendental-query")
 @click.option(
     "--config-dir",

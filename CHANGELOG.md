@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Vault management commands**
+  - `VaultClear` / `vault clear` - Remove all offices while keeping vault and DeveloperKey intact
+  - `VaultDestroy` / `vault destroy` - Completely delete the vault file
+  - CLI aliases: `reset` (for clear) and `delete` (for destroy)
+  - Both commands support `-y/--yes` flag to skip confirmation prompts
+- **Bulk office addition** - Add multiple offices to vault with a single command
+  - Use comma-separated office IDs: `VaultAdd office1,office2,office3`
+  - Prompts for each office's CustomerKey, then master password once
+  - Shows summary of successful and failed additions
+- Single-word command shortcuts for faster typing (e.g., `Query`, `VaultInit`, `ConfigList`)
+  - Main shortcuts: `Query`, `Vault`, `Config`, `Update`
+  - Vault shortcuts: `VaultInit`, `VaultAdd`, `VaultRemove`, `VaultList`, `VaultUpdateKey`
+  - Config shortcuts: `ConfigGet`, `ConfigSet`, `ConfigList`, `ConfigReset`, `ConfigPath`
+- CLI subcommand aliases for streamlined usage (e.g., `opendental-query v init`)
+  - Top-level aliases: `v` (vault), `c` (config), `q` (query), `update` (check-update)
+  - Vault subcommand aliases: `add`, `remove`, `rm`, `list`, `ls`, `update-key`
+  - Config subcommand aliases: `ls` (list)
+- New `shortcuts.py` module providing entry points for single-word commands
+- Comprehensive documentation for all command shortcuts and aliases
+- Updated documentation in README.md, quickstart.md, and new COMMAND_ALIASES.md
+
 ### Planned
 - Software update checker (GitHub releases integration)
 - CI/CD pipeline (automated testing and releases)
