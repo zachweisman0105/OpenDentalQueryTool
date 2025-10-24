@@ -1,0 +1,8 @@
+# Core Production Dependencies
+argon2-cffi>=23.1
+cryptography>=41.0
+httpx>=0.25
+rich>=13.7
+click>=8.1
+pydantic>=2.5
+orjson>=3.9

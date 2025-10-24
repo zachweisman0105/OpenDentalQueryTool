@@ -1,0 +1,8 @@
+# Development Tools
+-c base.txt
+ruff>=0.1
+mypy>=1.7
+pre-commit
+pip-tools
+bandit
+safety

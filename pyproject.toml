@@ -1,0 +1,166 @@
+[project]
+name = "opendental-query"
+version = "1.0.0"
+description = "Local, HIPAA-compliant CLI tool for querying OpenDental across multiple offices"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "OpenDental Query Tool Team"}
+]
+keywords = ["opendental", "dental", "query", "cli", "hipaa", "multi-office"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Office/Business",
+]
+
+dependencies = [
+    "argon2-cffi>=23.1",
+    "cryptography>=41.0",
+    "httpx>=0.25",
+    "rich>=13.7",
+    "click>=8.1",
+    "pydantic>=2.5",
+    "orjson>=3.9",
+    "packaging>=23.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1",
+    "mypy>=1.7",
+    "pre-commit",
+    "pip-tools",
+]
+test = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.12",
+    "respx>=0.20",
+    "freezegun>=1.4",
+]
+packaging = [
+    "pyinstaller>=6.7",
+]
+
+[project.scripts]
+opendental-query = "opendental_query.cli.main:cli"
+Query = "opendental_query.cli.query_cmd:query_command"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311', 'py312', 'py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    # directories
+    \.eggs
+    | \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.venv
+    | build
+    | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "S",   # flake8-bandit (security)
+    "T20", # flake8-print
+]
+ignore = [
+    "S101",  # Allow assert statements in tests
+    "S603",  # Allow subprocess calls (needed for git commands)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]  # Allow asserts and hardcoded passwords in tests
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=opendental_query",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

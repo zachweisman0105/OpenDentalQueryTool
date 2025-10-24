@@ -1,0 +1,33 @@
+name: Security Scans
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday 6:00 UTC
+  workflow_dispatch:
+
+jobs:
+  bandit:
+    name: Bandit Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Bandit
+        run: pip install bandit[toml]
+      - name: Run Bandit
+        run: bandit -c pyproject.toml -r src/
+
+  safety:
+    name: Safety Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Safety
+        run: pip install safety
+      - name: Run Safety
+        run: safety check --full-report || true  # Do not fail build, report only

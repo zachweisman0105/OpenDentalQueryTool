@@ -1,0 +1,51 @@
+# Automatically normalize line endings for all text files
+* text=auto
+
+# Source code
+*.py text eol=lf diff=python
+*.pyi text eol=lf diff=python
+*.sh text eol=lf
+*.ps1 text eol=crlf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Configuration files
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+Makefile text eol=lf
+
+# Git files
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binary files
+*.db binary
+*.enc binary
+*.p12 binary
+*.pfx binary
+*.pyc binary
+*.pyo binary
+*.pyd binary
+*.so binary
+*.dll binary
+*.exe binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+
+# Export linguist detections
+*.ps1 linguist-language=PowerShell
+*.py linguist-language=Python
