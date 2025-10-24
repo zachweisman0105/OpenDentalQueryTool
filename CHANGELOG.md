@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Software update checker (GitHub releases integration)
+- CI/CD pipeline (automated testing and releases)
+- PyPI package distribution
+- Automated publishing of PyInstaller-built executables (Windows, macOS, Linux)
+- Enhanced Excel UX with openpyxl renderer
+
+---
+## [1.0.1] - 2025-10-24
+
 ### Added
 - PyInstaller build script and packaging docs for creating standalone executables.
 - `Query` console entry point as a shorthand for `opendental-query query`.
@@ -17,13 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Audit log now stores SHA256 query hashes only and automatically records hostname, IP address, and a per-session identifier.
 - `opendental-query query` enforces read-only SQL (SELECT/SHOW/DESCRIBE/EXPLAIN) and rejects mutating statements before execution.
 - Retry backoff logging uses structured warnings with sanitized HTTP context instead of printing raw responses.
-
-### Planned
-- Software update checker (GitHub releases integration)
-- CI/CD pipeline (automated testing and releases)
-- PyPI package distribution
-- Automated publishing of PyInstaller-built executables (Windows, macOS, Linux)
-- Enhanced Excel UX with openpyxl renderer
 
 ---
 
