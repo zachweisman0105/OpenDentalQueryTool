@@ -1,6 +1,6 @@
 [project]
 name = "opendental-query"
-version = "1.0.0"
+version = "1.0.1"
 description = "Local, HIPAA-compliant CLI tool for querying OpenDental across multiple offices"
 readme = "README.md"
 requires-python = ">=3.11"
