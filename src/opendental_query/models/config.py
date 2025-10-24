@@ -74,7 +74,9 @@ class AppConfig(BaseModel):
 
     config_dir: Path = Field(..., description="Directory for configuration files")
     api_base_url: str = Field(
-        default="https://api.opendental.com", description="OpenDental API base URL (HTTPS required)"
+    default="https://api.opendental.com/api/v1/queries/ShortQuery",
+    description="OpenDental API base URL (HTTPS required)"
+)
     )
     max_concurrent_requests: int = Field(
         default=10, ge=1, le=50, description="Maximum concurrent API requests"
