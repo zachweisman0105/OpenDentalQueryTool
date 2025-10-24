@@ -53,7 +53,7 @@ class ConfigManager:
             config_data["config_dir"] = str(self.config_path.parent)
 
         # Validate HTTPS
-        api_url = config_data.get("api_base_url", "")
+        api_url = config_data.get("", "")
         if api_url.startswith("http://"):
             raise ValueError(f"HTTPS required for API base URL. Found insecure HTTP: {api_url}")
         if not api_url.startswith("https://"):
@@ -100,7 +100,7 @@ class ConfigManager:
         """
         default_config = AppConfig(
             config_dir=self.config_path.parent,
-            api_base_url="https://api.opendental.com",
+            api_base_url="https://api.opendental.com/api/v1/queries/ShortQuery",
             max_concurrent_requests=10,
             query_timeout_seconds=300,
         )
