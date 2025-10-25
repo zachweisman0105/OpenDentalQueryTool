@@ -1,7 +1,6 @@
 # OpenDental Multi-Office Query Tool
 
-A local, HIPAA-compliant CLI for executing SQL queries across multiple OpenDental office instances simultaneously.  
-Releases are built with PyInstaller—no Python installation required.
+A local, HIPAA-compliant CLI for executing SQL queries across multiple OpenDental office instances simultaneously.
 
 ---
 
@@ -18,105 +17,75 @@ Releases are built with PyInstaller—no Python installation required.
 
 ## Requirements
 
+- **Python 3.11 or newer** (3.11, 3.12, or 3.13 supported)  
 - OpenDental Remote API with valid DeveloperKey and CustomerKeys  
 - HTTPS-accessible OpenDental API endpoint  
-- Windows 10+ or macOS 13+  
+- Windows 10+, macOS 13+, or Linux (Ubuntu 20.04+)  
 - Internet access to all office endpoints  
 
 ---
 
-## Installation (Standalone Executable)
+## Installation
 
-1. **Download** the binary for your platform from the [Releases](../../releases) page:  
-   - **Windows:** `opendental-query.exe`  
-   - **macOS:** `MacOSPackage`  
+1. **Download and install Python 3.11+** from [python.org/downloads](https://www.python.org/downloads/).  
+   - During installation, check “Add Python to PATH.”  
+   - Verify installation:  
+     ```bash
+     python --version
+     ```
 
-2. **Place** the binary in your preferred directory, e.g.  
-   - `C:\Program Files\OpenDentalQuery\` (Windows)  
-   - `/Applications/OpenDentalQuery/` (macOS)  
-
-3. **Run** the tool:
-
-   ```powershell
-   opendental-query.exe      # Windows
-   ./MacOSPackage            # macOS
+2. **Clone the repository and install dependencies**:
+   ```bash
+   git clone https://github.com/zachweisman0105/OpenDentalQueryTool.git
+   cd OpenDentalQueryTool
+   py -3.11 -m venv .venv
+   .venv\Scripts\activate
+   pip install -U pip
+   pip install -e .
    ```
 
-4. *(Optional)* Add the directory to your `PATH` for global use.
-
-To update, replace the binary with the latest version.
+3. **Run the tool**:
+   ```bash
+   Query
+   VaultInit
+   VaultAdd
+   ConfigList
+   ```
 
 ---
 
 ## Quick Start
 
-Ensure the executable is on your `PATH`.
-
-> See [docs/COMMAND_ALIASES.md](docs/COMMAND_ALIASES.md) for command shortcuts  
+Ensure the virtual environment is activated.  
+> See [docs/COMMAND_ALIASES.md](docs/COMMAND_ALIASES.md) for shortcut commands  
 > (e.g. `VaultInit` = `opendental-query vault-init`)
 
 ### 1. Initialize Vault
 
 ```bash
-vaultinit
+VaultInit
 # Prompts:
 # - Master password (≥12 chars)
 # - Global DeveloperKey
 ```
 
-Default API URL:  
-`https://api.opendental.com/api/v1`  
-Override with:
-
-```bash
-opendental-query config set-api-url https://your-url/api/v1
-```
-
 ### 2. Add Office Credentials
 
 ```bash
-vaultadd
+VaultAdd
 # Prompts:
 # - Office ID
 # - CustomerKey
 ```
 
-Multiple IDs:
-
-```bash
-opendental-query vaultadd office1,office2
-```
-
 ### 3. Run a Query
 
 ```bash
-query
+Query
 # Prompts:
 # - Master password
 # - SQL query (SELECT only)
 # - Office selection (ALL or list)
-```
-
-The CLI automatically formats requests for Open Dental’s ShortQuery endpoint.
-
----
-
-## Examples
-
-### Query All Offices
-
-```bash
-query
-SQL query: SELECT COUNT(*) FROM appointment WHERE AptDateTime > '2025-10-01'
-Select offices: ALL
-```
-
-### Query Selected Offices
-
-```bash
-query
-SQL query: SELECT LName, FName FROM patient LIMIT 10
-Select offices: MainOffice,BranchA
 ```
 
 ---
@@ -145,14 +114,6 @@ Select offices: MainOffice,BranchA
 
 ---
 
-## Packaging
-
-Executables are produced via PyInstaller (`packaging/pyinstaller/build.py`).  
-Each bundle includes the Python runtime and dependencies.  
-Currently supported: Windows and macOS (Linux support removed).  
-
----
-
 ## License
 
 MIT License — see `LICENSE`.
@@ -162,4 +123,3 @@ MIT License — see `LICENSE`.
 ## Support
 
 Report issues or feature requests via GitHub Issues.
-
