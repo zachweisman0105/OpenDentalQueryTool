@@ -1,167 +1,165 @@
 # OpenDental Multi-Office Query Tool
 
-A local, HIPAA-compliant CLI tool for executing SQL queries across multiple OpenDental office instances simultaneously.  
-Releases ship as self-contained binaries built with PyInstaller—no Python installation required.
+A local, HIPAA-compliant CLI for executing SQL queries across multiple OpenDental office instances simultaneously.  
+Releases are built with PyInstaller—no Python installation required.
+
+---
 
 ## Features
 
-- **HIPAA Compliant**: Zero PHI logging, encrypted credential storage, and full audit trails  
-- **Multi-Office Support**: Run the same query across all or selected offices in parallel  
-- **Secure Vault**: Argon2id + AES-256-GCM encryption for credentials  
-- **Excel-Style Output**: Rich table rendering with optional CSV export  
-- **Resilient Networking**: Automatic retries with backoff and jitter  
-- **Comprehensive Logging**: 90-day audit log retention with hardened defaults  
+- **HIPAA Compliance:** No PHI logging, encrypted vault, and auditable events  
+- **Multi-Office Support:** Run a single SQL query across many offices concurrently  
+- **Secure Vault:** Argon2id + AES-256-GCM encryption for credentials  
+- **Readable Output:** Table display with optional CSV export  
+- **Resilient Networking:** Automatic retry and backoff  
+- **Comprehensive Logging:** 30-day app log and 90-day audit log retention  
+
+---
 
 ## Requirements
 
-- OpenDental Remote API access with valid credentials  
+- OpenDental Remote API with valid DeveloperKey and CustomerKeys  
 - HTTPS-accessible OpenDental API endpoint  
 - Windows 10+ or macOS 13+  
-- Network connectivity to every office queried  
+- Internet access to all office endpoints  
+
+---
 
 ## Installation (Standalone Executable)
 
-1. Download the latest binary for your operating system from the [Releases](../../releases) page:  
-   - **Windows:** `WindowsPackage`  
-   - **macOS:** `MacOSPackage`
+1. **Download** the binary for your platform from the [Releases](../../releases) page:  
+   - **Windows:** `opendental-query.exe`  
+   - **macOS:** `MacOSPackage`  
 
-2. Place the file in your preferred directory, such as:  
+2. **Place** the binary in your preferred directory, e.g.  
    - `C:\Program Files\OpenDentalQuery\` (Windows)  
    - `/Applications/OpenDentalQuery/` (macOS)  
 
-3. **Windows:**  
-   - Run directly via PowerShell or Command Prompt:  
-     ```powershell
-     opendental-query-windows.exe
-     ```
+3. **Run** the tool:
 
-   **macOS:**  
-   - Make the file executable and remove quarantine:  
-     ```bash
-     chmod +x opendental-query-macos
-     xattr -d com.apple.quarantine ./opendental-query-macos
-     ./opendental-query-macos
-     ```
+   ```powershell
+   opendental-query.exe      # Windows
+   ./MacOSPackage            # macOS
+   ```
 
-4. (Optional) Add the directory to your `PATH` to run the command globally.
+4. *(Optional)* Add the directory to your `PATH` for global use.
 
-To update, replace the old binary with the new release file.
+To update, replace the binary with the latest version.
+
+---
 
 ## Quick Start
 
-The commands below assume `opendental-query` (or `opendental-query.exe`) is available on your shell `PATH`. If it is not, prefix each command with the full path to the executable.
+Ensure the executable is on your `PATH`.
 
-> **💡 Tip:** The tool provides convenient single-word shortcuts for faster typing!  
-> For example: `VaultInit` instead of `opendental-query vault init`, or `Query` instead of `opendental-query query`  
-> See [Command Shortcuts Documentation](docs/COMMAND_ALIASES.md) for the complete list.
+> See [docs/COMMAND_ALIASES.md](docs/COMMAND_ALIASES.md) for command shortcuts  
+> (e.g. `VaultInit` = `opendental-query vault-init`)
 
 ### 1. Initialize Vault
 
 ```bash
 opendental-query vault-init
-
 # Prompts:
-# - Master password (min 12 chars, mixed case, numbers, symbols)
+# - Master password (≥12 chars)
 # - Global DeveloperKey
 ```
 
-**Note:** The API URL is automatically set to `https://api.opendental.com/api/v1` by default. If you need to use a different URL, you can set it with:
+Default API URL:  
+`https://api.opendental.com/api/v1`  
+Override with:
+
 ```bash
-opendental-query config set-api-url https://your-custom-api-url.com/api/v1
+opendental-query config set-api-url https://your-url/api/v1
 ```
 
 ### 2. Add Office Credentials
 
 ```bash
 opendental-query vault-add-office
-
 # Prompts:
-# - Office ID (e.g., "MainOffice", "BranchA")
-# - CustomerKey for that office
+# - Office ID
+# - CustomerKey
 ```
 
-**Tip:** Add multiple offices at once by providing comma-separated IDs:
+Multiple IDs:
+
 ```bash
-opendental-query vault-add-office office1,office2,office3
-
-# Or using shortcuts:
-VaultAdd office1,office2,office3
+opendental-query vault-add-office office1,office2
 ```
 
-### 3. Execute a Query
+### 3. Run a Query
 
 ```bash
 opendental-query query
-
 # Prompts:
-# - Master password (to unlock vault)
+# - Master password
 # - SQL query (SELECT only)
-# - Office selection (ALL or comma-separated IDs)
+# - Office selection (ALL or list)
 ```
 
-The CLI formats requests according to Open Dental's ShortQuery endpoint, so no manual JSON payload construction is required.
+The CLI automatically formats requests for Open Dental’s ShortQuery endpoint.
 
-## Usage Examples
+---
+
+## Examples
 
 ### Query All Offices
 
 ```bash
-$ opendental-query query
-Master password: ********
+opendental-query query
 SQL query: SELECT COUNT(*) FROM appointment WHERE AptDateTime > '2025-10-01'
-Select offices (ALL or comma-separated IDs): ALL
-
-Executing query across 5 offices... done
-
-Results:
-Office       | count
------------- | -----
-MainOffice   | 234
-BranchA      | 156
-BranchB      | 189
-Downtown     | 267
-Uptown       | 198
-
-Export results to CSV? [y/N]: n
+Select offices: ALL
 ```
 
-### Query Specific Offices
+### Query Selected Offices
 
 ```bash
-$ opendental-query query
-Master password: ********
-SQL query: SELECT PatientNum, LName, FName FROM patient LIMIT 10
-Select offices (ALL or comma-separated IDs): MainOffice,BranchA
-
-# Results limited to the selected offices
+opendental-query query
+SQL query: SELECT LName, FName FROM patient LIMIT 10
+Select offices: MainOffice,BranchA
 ```
+
+---
 
 ## Security
 
-- **Encryption**: Argon2id (64MB memory, 3 iterations, 4 parallelism) + AES-256-GCM
-- **Vault Permissions**: 0600 (user read/write only)
-- **Auto-Lock**: 15-minute inactivity timeout
-- **Lockout Protection**: 60-second cooldown after 3 failed password attempts
-- **HTTPS Only**: HTTP endpoints rejected with error
-- **Read-Only Enforcement**: CLI rejects non-read-only SQL commands before execution
-- **No PHI Logging**: Query text is hashed before persistence and audit events include host/IP/session metadata only
+- **Encryption:** Argon2id (64 MB, 3 iterations, 4 threads) + AES-256-GCM  
+- **Vault Permissions:** 0600  
+- **Auto-Lock:** 15 minutes inactivity  
+- **Lockout:** 60 seconds after 3 failed attempts  
+- **HTTPS Only:** HTTP requests rejected  
+- **Read-Only Enforcement:** Non-SELECT SQL blocked  
+- **Audit Logging:** PHI never logged; metadata only  
+
+---
 
 ## File Locations
 
-- **Config**: `~/.opendental-query/config.json`
-- **Vault**: `~/.opendental-query/vault.enc`
-- **Application Log**: `~/.opendental-query/app.log` (30-day retention)
-- **Audit Log**: `~/.opendental-query/audit.log` (90-day retention, JSONL format)
-- **CSV Exports**: `~/Downloads/` (fallback to current directory)
+| File | Path | Retention |
+|------|------|------------|
+| Config | `~/.opendental-query/config.json` | persistent |
+| Vault | `~/.opendental-query/credentials.vault` | persistent |
+| App Log | `~/.opendental-query/app.log` | 30 days |
+| Audit Log | `~/.opendental-query/audit.jsonl` | 90 days |
+| CSV Exports | `~/Downloads/` | user-managed |
 
-## How the Standalone Package Is Produced
+---
 
-Every downloadable executable is created with PyInstaller, bundling the Python runtime and all dependencies into a single file per operating system. Maintainers who need to regenerate the package can run the PyInstaller build script documented under `packaging/pyinstaller/`, but end users only need to download and run the published bundle.
+## Packaging
+
+Executables are produced via PyInstaller (`packaging/pyinstaller/build.py`).  
+Each bundle includes the Python runtime and dependencies.  
+Currently supported: Windows and macOS (Linux support removed).  
+
+---
 
 ## License
 
-MIT License - see `LICENSE` for details.
+MIT License — see `LICENSE`.
+
+---
 
 ## Support
 
-For issues, feature requests, or questions, please file an issue on the GitHub repository.
+Report issues or feature requests via GitHub Issues.
+
