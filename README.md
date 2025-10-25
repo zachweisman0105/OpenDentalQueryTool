@@ -22,9 +22,8 @@ Releases ship as self-contained binaries built with PyInstaller—no Python inst
 ## Installation (Standalone Executable)
 
 1. Download the latest binary for your operating system from the [Releases](../../releases) page:  
-   - **Windows:** `opendental-query-windows.exe`  
-   - **macOS:** `opendental-query-macos`  
-   - **Linux:** `opendental-query-linux`  
+   - **Windows:** `WindowsPackage`  
+   - **macOS:** `MacOSPackage`
 
 2. Place the file in your preferred directory, such as:  
    - `C:\Program Files\OpenDentalQuery\` (Windows)  
