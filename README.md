@@ -58,7 +58,7 @@ Ensure the executable is on your `PATH`.
 ### 1. Initialize Vault
 
 ```bash
-opendental-query vault-init
+vaultinit
 # Prompts:
 # - Master password (≥12 chars)
 # - Global DeveloperKey
@@ -75,7 +75,7 @@ opendental-query config set-api-url https://your-url/api/v1
 ### 2. Add Office Credentials
 
 ```bash
-opendental-query vault-add-office
+vaultadd
 # Prompts:
 # - Office ID
 # - CustomerKey
@@ -84,13 +84,13 @@ opendental-query vault-add-office
 Multiple IDs:
 
 ```bash
-opendental-query vault-add-office office1,office2
+opendental-query vaultadd office1,office2
 ```
 
 ### 3. Run a Query
 
 ```bash
-opendental-query query
+query
 # Prompts:
 # - Master password
 # - SQL query (SELECT only)
@@ -106,7 +106,7 @@ The CLI automatically formats requests for Open Dental’s ShortQuery endpoint.
 ### Query All Offices
 
 ```bash
-opendental-query query
+query
 SQL query: SELECT COUNT(*) FROM appointment WHERE AptDateTime > '2025-10-01'
 Select offices: ALL
 ```
@@ -114,7 +114,7 @@ Select offices: ALL
 ### Query Selected Offices
 
 ```bash
-opendental-query query
+query
 SQL query: SELECT LName, FName FROM patient LIMIT 10
 Select offices: MainOffice,BranchA
 ```
