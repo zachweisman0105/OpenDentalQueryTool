@@ -107,11 +107,11 @@ class TestAllEventTypes:
         assert all(c in "0123456789abcdef" for c in log_entry["details"]["query_hash"])
 
     def test_export_created_event(self, temp_dir):
-        """Test audit logging for CSV export."""
+        """Test audit logging for Excel export."""
         log_path = temp_dir / "audit.log"
         logger = AuditLogger(log_path)
 
-        export_path = Path("C:/Users/Test/Downloads/results.csv")
+        export_path = Path("C:/Users/Test/Downloads/results.xlsx")
         logger.log_export_created(export_path, 42)
 
         with open(log_path) as f:
@@ -121,7 +121,7 @@ class TestAllEventTypes:
         details = log_entry["details"]
         assert details["row_count"] == 42  # In details dict
         assert "file_path" not in details
-        assert details["filename"] == "results.csv"
+        assert details["filename"] == "results.xlsx"
         assert re.fullmatch(r"[0-9a-f]{64}", details["path_hash"])
 
     def test_authentication_failed_event(self, temp_dir):
@@ -284,14 +284,14 @@ class TestPHICompliance:
         logger = AuditLogger(log_path)
 
         # Log export (only case where path is intentionally logged)
-        export_path = Path("C:/Users/JohnDoe/Downloads/results.csv")
+        export_path = Path("C:/Users/JohnDoe/Downloads/results.xlsx")
         logger.log_export_created(export_path, 10)
 
         with open(log_path) as f:
             log_entry = json.loads(f.readline())
 
         # Export logs include hashed path metadata without raw filesystem disclosure
-        assert log_entry["details"]["filename"] == "results.csv"
+        assert log_entry["details"]["filename"] == "results.xlsx"
         assert "path_hash" in log_entry["details"]
         assert re.fullmatch(r"[0-9a-f]{64}", log_entry["details"]["path_hash"])
         assert "file_path" not in log_entry["details"]

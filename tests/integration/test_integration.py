@@ -6,13 +6,14 @@ Tests the complete flow: config → vault → query → render → export
 
 from pathlib import Path
 
+import openpyxl
 import pytest
 import respx
 from httpx import Response
 
 from opendental_query.core.query_engine import QueryEngine
 from opendental_query.core.vault import VaultManager
-from opendental_query.renderers.csv_exporter import CSVExporter
+from opendental_query.renderers.excel_exporter import ExcelExporter
 
 
 @pytest.fixture(autouse=True)
@@ -95,22 +96,25 @@ class TestEndToEndQueryFlow:
         assert "Office" in result.all_rows[0]
         assert result.all_rows[0]["Office"] in ["office1", "office2"]
 
-        # Test CSV export
+        # Test Excel export
         export_dir = temp_config_dir / "exports"
-        exporter = CSVExporter()
-        csv_path = exporter.export(result.all_rows, output_dir=export_dir)
+        exporter = ExcelExporter()
+        workbook_path = exporter.export(result.all_rows, output_dir=export_dir)
 
-        # Verify CSV was created
-        assert csv_path.exists()
-        assert csv_path.suffix == ".csv"
-        assert "opendental_query_" in csv_path.name
+        # Verify workbook was created
+        assert workbook_path.exists()
+        assert workbook_path.suffix == ".xlsx"
+        assert "opendental_query_" in workbook_path.name
 
-        # Verify CSV content
-        with open(csv_path, encoding="utf-8-sig") as f:
-            content = f.read()
-            assert "Office" in content
-            assert "PatNum" in content
-            assert "LName" in content
+        # Verify workbook content
+        workbook = openpyxl.load_workbook(workbook_path)
+        sheet = workbook.active
+        values = list(sheet.iter_rows(values_only=True))
+        assert values[0][:3] == ("Office", "PatNum", "LName")
+        assert values[1][0] in {"office1", "office2"}
+        row1 = (str(values[1][1]), values[1][2])
+        row2 = (str(values[2][1]), values[2][2])
+        assert {row1, row2} == {('1', 'Smith'), ('2', 'Jones')}
 
     @respx.mock
     def test_handles_mixed_success_and_failure(
@@ -152,11 +156,11 @@ class TestEndToEndQueryFlow:
         assert result.failed_count == 1
         assert len(result.all_rows) == 1  # Only successful office
 
-        # Verify CSV export still works with partial results
+        # Verify Excel export still works with partial results
         export_dir = temp_config_dir / "exports"
-        exporter = CSVExporter()
-        csv_path = exporter.export(result.all_rows, output_dir=export_dir)
-        assert csv_path.exists()
+        exporter = ExcelExporter()
+        workbook_path = exporter.export(result.all_rows, output_dir=export_dir)
+        assert workbook_path.exists()
 
 
 class TestVaultIntegration:

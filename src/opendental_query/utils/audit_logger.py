@@ -187,17 +187,17 @@ class AuditLogger:
         }
         self.log("query_execution", success=True, details=details)
 
-    def log_csv_export(
+    def log_excel_export(
         self,
         *,
         filepath: str,
         row_count: int,
         office_count: int,
     ) -> None:
-        """Log a CSV export event.
+        """Log an Excel export event.
 
         Args:
-            filepath: Path to exported CSV file
+            filepath: Path to exported Excel file
             row_count: Number of rows exported
             office_count: Number of offices in export
         """
@@ -215,7 +215,7 @@ class AuditLogger:
             "office_count": office_count,
             "sha256": file_hash,
         }
-        self.log("csv_export", success=True, details=details)
+        self.log("excel_export", success=True, details=details)
 
     @property
     def current_user(self) -> str:
@@ -269,7 +269,7 @@ class AuditLogger:
         )
 
     def log_export_created(self, export_path: Path, row_count: int) -> None:
-        """Log CSV export creation event.
+        """Log export creation event.
 
         Args:
             export_path: Path to the exported file
@@ -435,7 +435,10 @@ class AuditLogger:
                 with self.audit_file.open("w", encoding="utf-8") as f:
                     f.writelines(valid_entries)
 
-                logger.info(f"Cleaned up {len(lines) - len(valid_entries)} old audit entries")
+                logger.debug(
+                    "Cleaned up %s old audit entries",
+                    len(lines) - len(valid_entries),
+                )
 
         except OSError as e:
             logger.error(f"Failed to cleanup old audit entries: {e}")

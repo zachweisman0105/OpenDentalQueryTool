@@ -52,11 +52,8 @@ def vault_init(ctx: click.Context, vault_file: Path | None) -> None:
 
     Creates a new vault file protected by a master password. You will be
     prompted to enter the password twice for confirmation, and to provide
-    your OpenDental DeveloperKey.
-
-    Requirements:
-    - Password must be at least 12 characters
-    - Must contain uppercase, lowercase, digit, and special character
+    your OpenDental DeveloperKey. No password complexity requirements are
+    enforced.
     """
     config_dir = ctx.obj["config_dir"]
 
@@ -70,10 +67,8 @@ def vault_init(ctx: click.Context, vault_file: Path | None) -> None:
         raise click.Abort()
 
     console.print("[bold]Initialize Vault[/bold]\n")
-    console.print("Create a strong master password with:")
-    console.print("  • At least 12 characters")
-    console.print("  • Uppercase and lowercase letters")
-    console.print("  • Numbers and special characters\n")
+    console.print("Choose a master password (no complexity requirements).")
+    console.print("You will need this password whenever you unlock the vault.\n")
 
     # Prompt for password
     password = click.prompt("Master password", hide_input=True)

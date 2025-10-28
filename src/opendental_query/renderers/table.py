@@ -1,4 +1,4 @@
-"""
+﻿"""
 TableRenderer for displaying query results in Rich tables.
 
 Provides console-based table rendering with:
@@ -23,18 +23,12 @@ from rich.box import Box
 from rich.console import Console
 from rich.table import Table
 
+from opendental_query.utils.formatting import format_cell_value
+
 # ASCII-friendly fallback box that still renders visually "thick" separators.
-_ASCII_THICK_BOX = Box(
-    "+==+\n"
-    "| ||\n"
-    "+==+\n"
-    "| ||\n"
-    "+==+\n"
-    "+==+\n"
-    "| ||\n"
-    "+==+\n",
-    ascii=True,
-)
+_ASCII_GRID_BOX = box.ASCII
+
+_UNICODE_GRID_BOX = box.SQUARE
 
 
 class TableRenderer:
@@ -89,14 +83,16 @@ class TableRenderer:
         if hasattr(data, "office_results"):
             # Minimal string rendering to satisfy Excel UX tests
             parts: list[str] = []
-            office_results = data.office_results
+            office_results = sorted(
+                data.office_results,
+                key=lambda o: (getattr(o, "office_id", "") or "").lower(),
+            )
             for office in office_results:
                 office_id = getattr(office, "office_id", "")
                 parts.append(f"Office: {office_id}")
                 rows = getattr(office, "rows", []) or []
                 for row in rows:
-                    # Join key=value pairs for lightweight output
-                    kv = ", ".join(f"{k}={v}" for k, v in row.items())
+                    kv = ", ".join(f"{k}={format_cell_value(v)}" for k, v in row.items())
                     parts.append(kv)
                 # Separator between offices
                 parts.append("")
@@ -143,15 +139,23 @@ class TableRenderer:
                 console.print(str(row))
             return None
 
+        # Sort rows alphabetically by Office column if present
+        office_column = next((col for col in columns if col.lower() == "office"), None)
+        if office_column:
+            rows = sorted(
+                rows,
+                key=lambda r: str(r.get(office_column) or "").lower(),
+            )
+
         # Warn if too many columns for comfortable terminal viewing
         if len(columns) > 20:
             console.print(
-                f"\n[yellow]⚠ Warning: {len(columns)} columns detected. "
+                f"\n[yellow]âš  Warning: {len(columns)} columns detected. "
                 f"Terminal display may be difficult to read.[/yellow]"
             )
             console.print(
-                "[yellow]💡 Tip: Consider using SELECT with specific columns, "
-                "or export to CSV for better viewing.[/yellow]\n"
+                "[yellow]ðŸ’¡ Tip: Consider using SELECT with specific columns, "
+                "or export to Excel for better viewing.[/yellow]\n"
             )
 
         # Determine column alignments
@@ -305,7 +309,7 @@ class TableRenderer:
             row_styles=["", "dim"],  # Alternating: normal white, dimmed gray
             border_style="cyan",
             box=self._resolve_box(console),
-            show_lines=True,  # Show lines between rows for Excel-like appearance
+            show_lines=True,
         )
 
         # Add columns with alignment
@@ -330,14 +334,10 @@ class TableRenderer:
             row_values = []
             for col in columns:
                 value = row.get(col)
-                if value is None:
-                    row_values.append("")
-                else:
-                    # Truncate if needed
-                    str_value = str(value)
-                    if len(str_value) > self.max_col_width:
-                        str_value = str_value[: self.max_col_width - 3] + "..."
-                    row_values.append(str_value)
+                display = format_cell_value(value)
+                if len(display) > self.max_col_width:
+                    display = display[: self.max_col_width - 3] + "..."
+                row_values.append(display)
 
             table.add_row(*row_values)
         return table
@@ -358,5 +358,5 @@ class TableRenderer:
         except Exception:
             ascii_only = False
 
-        # Use ROUNDED for Excel-like appearance with visible grid lines
-        return box.ASCII if ascii_only else box.ROUNDED
+        return _ASCII_GRID_BOX if ascii_only else _UNICODE_GRID_BOX
+

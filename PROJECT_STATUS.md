@@ -58,7 +58,7 @@
 ### Phase 4: Core Query Engine - US1 (47/47 tasks - 100%)
 - ✅ QueryEngine class
 - ✅ OpenDental API integration (httpx)
-- ✅ SQL query validation (SELECT-only enforcement)
+- ✅ Query execution pipeline (server-side validation)
 - ✅ Multi-office parallel query execution
 - ✅ Query timeout control (30-second default)
 - ✅ Result data models (QueryResult, MergedQueryResult)
@@ -103,7 +103,7 @@
 ### Phase 8: Excel UX - US6 (6/6 tasks - 100%)
 - ✅ TableRenderer with Rich library
 - ✅ Beautiful terminal table rendering
-- ✅ CSV export functionality (UTF-8)
+- ✅ Excel export functionality (styled workbooks)
 - ✅ Column formatting and alignment
 - ✅ Large dataset handling (streaming)
 - ✅ Export configuration options

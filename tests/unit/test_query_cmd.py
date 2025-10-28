@@ -6,9 +6,37 @@ Tests that invalid office IDs are rejected with clear error messages.
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from opendental_query.cli.query_cmd import query_command
+from opendental_query.utils.saved_queries import SavedQuery
+
+
+@pytest.fixture(autouse=True)
+def saved_query_library_stub(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Patch SavedQueryLibrary to avoid touching the real config directory."""
+
+    class FakeLibrary:
+        def __init__(self) -> None:
+            self.queries: dict[str, SavedQuery] = {}
+
+        def get_query(self, name: str) -> SavedQuery:
+            if name not in self.queries:
+                raise KeyError(name)
+            return self.queries[name]
+
+        def list_queries(self) -> list[SavedQuery]:
+            return list(self.queries.values())
+
+    fake_library = FakeLibrary()
+
+    def factory(config_dir: Path) -> FakeLibrary:
+        return fake_library
+
+    monkeypatch.setattr("opendental_query.cli.query_cmd.SavedQueryLibrary", factory)
+    monkeypatch.setattr("opendental_query.cli.query_cmd.DEFAULT_CONFIG_DIR", tmp_path)
+    return fake_library
 
 
 
@@ -56,8 +84,8 @@ class TestOfficeSelectionValidation:
                 assert "Invalid office IDs" in result.output or "invalid" in result.output.lower()
                 assert "invalid_office" in result.output
 
-    def test_non_read_only_sql_is_rejected(self, tmp_path: Path) -> None:
-        """Ensure mutating SQL statements are rejected before execution."""
+    def test_mutating_sql_is_allowed(self, tmp_path: Path) -> None:
+        """Mutating SQL statements should be forwarded to the engine."""
         runner = CliRunner()
 
         with (
@@ -71,12 +99,23 @@ class TestOfficeSelectionValidation:
 
             mock_vault_data = MagicMock()
             mock_vault_data.offices = {"office1": MagicMock(customer_key="key1")}
+            mock_vault_data.developer_key = "dev_key"
             mock_vault.get_vault.return_value = mock_vault_data
 
             mock_config = MagicMock()
             mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
             mock_config.api_base_url = "https://api.test.com"
-            mock_config.vault_path = tmp_path / "vault.enc"
+            mock_config.vault_path = tmp_path / "credentials.vault"
+
+            mock_engine = MagicMock()
+            mock_engine_cls.return_value = mock_engine
+            mock_engine.execute.return_value = MagicMock(
+                total_offices=1,
+                successful_count=1,
+                failed_count=0,
+                all_rows=[],
+                office_results=[],
+            )
 
             result = runner.invoke(
                 query_command,
@@ -85,15 +124,66 @@ class TestOfficeSelectionValidation:
                     "UPDATE patient SET LName='Smith'",
                     "--offices",
                     "office1",
-
                 ],
                 catch_exceptions=False,
             )
 
-            assert result.exit_code == 2
-            assert "read-only" in result.output.lower()
-            mock_engine_cls.assert_not_called()
+            assert result.exit_code == 0
+            mock_engine.execute.assert_called_once()
 
+    def test_saved_query_executes_with_defaults(
+        self,
+        tmp_path: Path,
+        saved_query_library_stub,
+    ) -> None:
+        """Saved queries provide SQL and default offices."""
+        runner = CliRunner()
+        saved_query_library_stub.queries["daily"] = SavedQuery(
+            name="daily",
+            sql="SELECT * FROM appointment",
+            default_offices=["office1"],
+        )
+
+        with (
+            patch("opendental_query.cli.query_cmd.VaultManager") as mock_vault_cls,
+            patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
+            patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
+        ):
+            mock_vault = MagicMock()
+            mock_vault_cls.return_value = mock_vault
+            mock_vault.is_unlocked.return_value = True
+            mock_vault_data = MagicMock()
+            mock_vault_data.offices = {"office1": MagicMock(customer_key="key1")}
+            mock_vault_data.developer_key = "dev_key"
+            mock_vault.get_vault.return_value = mock_vault_data
+
+            mock_config = MagicMock()
+            mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
+            mock_config.api_base_url = "https://api.test.com"
+            mock_config.vault_path = tmp_path / "credentials.vault"
+            mock_config.vault_auto_lock_seconds = 900
+
+            mock_engine = MagicMock()
+            mock_engine_cls.return_value = mock_engine
+            mock_engine.execute.return_value = MagicMock(
+                total_offices=1,
+                successful_count=1,
+                failed_count=0,
+                all_rows=[],
+                office_results=[],
+            )
+
+            result = runner.invoke(
+                query_command,
+                [
+                    "--saved-query",
+                    "daily",
+                ],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            assert mock_engine.execute.call_args.kwargs["sql"] == "SELECT * FROM appointment"
     def test_multiple_invalid_offices_listed(self, tmp_path: Path) -> None:
         """Test that multiple invalid office IDs are all listed in error."""
         runner = CliRunner()
@@ -279,7 +369,7 @@ class TestInteractiveInput:
             patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
             patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
             patch("opendental_query.cli.query_cmd.ProgressIndicator"),
-            patch("opendental_query.cli.query_cmd.CSVExporter"),
+            patch("opendental_query.cli.query_cmd.ExcelExporter"),
             patch("opendental_query.cli.query_cmd.TableRenderer"),
             patch("opendental_query.cli.query_cmd.AuditLogger") as mock_audit_logger_cls,
         ):
@@ -312,8 +402,8 @@ class TestInteractiveInput:
             mock_audit_logger = MagicMock()
             mock_audit_logger_cls.return_value = mock_audit_logger
 
-            # SQL followed by single blank line, then office selection "ALL", trailing blank for "Run another query?" prompt
-            user_input = "SELECT 1;\n\nALL\n\n"
+            # SQL entry, three blank confirmations, then office selection "ALL", trailing blank for "Run another query?" prompt
+            user_input = "SELECT 1;\n\n\n\n\nALL\n\n"
             result = runner.invoke(
                 query_command,
                 [],
@@ -332,9 +422,10 @@ class TestInteractiveInput:
             patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
             patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
             patch("opendental_query.cli.query_cmd.ProgressIndicator"),
-            patch("opendental_query.cli.query_cmd.CSVExporter") as mock_exporter_cls,
+            patch("opendental_query.cli.query_cmd.ExcelExporter") as mock_exporter_cls,
             patch("opendental_query.cli.query_cmd.TableRenderer"),
             patch("opendental_query.cli.query_cmd.AuditLogger") as mock_audit_logger_cls,
+            patch("opendental_query.cli.query_cmd._open_workbook_with_default_app") as mock_open_workbook,
         ):
             mock_vault = MagicMock()
             mock_vault_cls.return_value = mock_vault
@@ -349,6 +440,7 @@ class TestInteractiveInput:
             mock_config.api_base_url = "https://api.test.com"
             mock_config.vault_path = tmp_path
             mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
+            mock_config.vault_auto_lock_seconds = 900
 
             mock_engine = MagicMock()
             mock_engine_cls.return_value = mock_engine
@@ -362,13 +454,13 @@ class TestInteractiveInput:
             mock_engine.execute.return_value = mock_result
 
             mock_exporter = MagicMock()
-            mock_exporter.export.return_value = tmp_path / "export.csv"
+            mock_exporter.export.return_value = tmp_path / "export.xlsx"
             mock_exporter_cls.return_value = mock_exporter
 
             mock_audit_logger = MagicMock()
             mock_audit_logger_cls.return_value = mock_audit_logger
 
-            user_input = "SELECT 1;\n\nALL\ny\nn\n"
+            user_input = "SELECT 1;\n\n\n\n\nALL\ny\nn\n"
             result = runner.invoke(
                 query_command,
                 [],
@@ -378,6 +470,7 @@ class TestInteractiveInput:
 
             assert result.exit_code == 0
             mock_exporter.export.assert_called_once()
+            mock_open_workbook.assert_called_once()
             assert "HIPAA Reminder" in result.output
 
     def test_export_flag_skips_prompt(self, tmp_path: Path) -> None:
@@ -389,9 +482,10 @@ class TestInteractiveInput:
             patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
             patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
             patch("opendental_query.cli.query_cmd.ProgressIndicator"),
-            patch("opendental_query.cli.query_cmd.CSVExporter") as mock_exporter_cls,
+            patch("opendental_query.cli.query_cmd.ExcelExporter") as mock_exporter_cls,
             patch("opendental_query.cli.query_cmd.TableRenderer"),
             patch("opendental_query.cli.query_cmd.AuditLogger") as mock_audit_logger_cls,
+            patch("opendental_query.cli.query_cmd._open_workbook_with_default_app") as mock_open_workbook,
         ):
             mock_vault = MagicMock()
             mock_vault_cls.return_value = mock_vault
@@ -406,6 +500,7 @@ class TestInteractiveInput:
             mock_config.api_base_url = "https://api.test.com"
             mock_config.vault_path = tmp_path
             mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
+            mock_config.vault_auto_lock_seconds = 900
 
             mock_engine = MagicMock()
             mock_engine_cls.return_value = mock_engine
@@ -419,7 +514,7 @@ class TestInteractiveInput:
             mock_engine.execute.return_value = mock_result
 
             mock_exporter = MagicMock()
-            mock_exporter.export.return_value = tmp_path / "export.csv"
+            mock_exporter.export.return_value = tmp_path / "export.xlsx"
             mock_exporter_cls.return_value = mock_exporter
 
             mock_audit_logger = MagicMock()
@@ -439,5 +534,185 @@ class TestInteractiveInput:
 
             assert result.exit_code == 0
             mock_exporter.export.assert_called_once()
-            assert "Export results to CSV?" not in result.output
+            mock_open_workbook.assert_called_once()
+            assert "Export results to Excel workbook?" not in result.output
+            assert "HIPAA Reminder" in result.output
+
+class TestInteractiveInput:
+    """Interactive query entry behaviour."""
+
+    def test_sql_submission_requires_single_blank_terminator(self, tmp_path: Path) -> None:
+        """User should finish SQL input with one blank line before office selection."""
+        runner = CliRunner()
+
+        with (
+            patch("opendental_query.cli.query_cmd.VaultManager") as mock_vault_cls,
+            patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
+            patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
+            patch("opendental_query.cli.query_cmd.ProgressIndicator"),
+            patch("opendental_query.cli.query_cmd.ExcelExporter"),
+            patch("opendental_query.cli.query_cmd.TableRenderer"),
+            patch("opendental_query.cli.query_cmd.AuditLogger") as mock_audit_logger_cls,
+        ):
+            mock_vault = MagicMock()
+            mock_vault_cls.return_value = mock_vault
+            mock_vault.is_unlocked.return_value = True
+
+            mock_vault_data = MagicMock()
+            mock_vault_data.offices = {"office1": MagicMock(customer_key="key1")}
+            mock_vault_data.developer_key = "dev_key"
+            mock_vault.get_vault.return_value = mock_vault_data
+
+            mock_config = MagicMock()
+            mock_config.api_base_url = "https://api.test.com"
+            mock_config.api_developer_key = "dev_key"
+            mock_config.vault_path = tmp_path
+            mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
+
+            mock_engine = MagicMock()
+            mock_engine_cls.return_value = mock_engine
+
+            mock_result = MagicMock()
+            mock_result.total_offices = 1
+            mock_result.successful_count = 1
+            mock_result.failed_count = 0
+            mock_result.all_rows = []
+            mock_result.office_results = []
+            mock_engine.execute.return_value = mock_result
+
+            mock_audit_logger = MagicMock()
+            mock_audit_logger_cls.return_value = mock_audit_logger
+
+            # SQL entry, three blank confirmations, then office selection "ALL", trailing blank for "Run another query?" prompt
+            user_input = "SELECT 1;\n\n\n\n\nALL\n\n"
+            result = runner.invoke(
+                query_command,
+                [],
+                input=user_input,
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+
+    def test_user_prompt_can_opt_into_export(self, tmp_path: Path) -> None:
+        """Interactive runs should prompt for export and respect confirmation."""
+        runner = CliRunner()
+
+        with (
+            patch("opendental_query.cli.query_cmd.VaultManager") as mock_vault_cls,
+            patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
+            patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
+            patch("opendental_query.cli.query_cmd.ProgressIndicator"),
+            patch("opendental_query.cli.query_cmd.ExcelExporter") as mock_exporter_cls,
+            patch("opendental_query.cli.query_cmd.TableRenderer"),
+            patch("opendental_query.cli.query_cmd.AuditLogger") as mock_audit_logger_cls,
+            patch("opendental_query.cli.query_cmd._open_workbook_with_default_app") as mock_open_workbook,
+        ):
+            mock_vault = MagicMock()
+            mock_vault_cls.return_value = mock_vault
+            mock_vault.is_unlocked.return_value = True
+
+            mock_vault_data = MagicMock()
+            mock_vault_data.offices = {"office1": MagicMock(customer_key="key1")}
+            mock_vault_data.developer_key = "dev_key"
+            mock_vault.get_vault.return_value = mock_vault_data
+
+            mock_config = MagicMock()
+            mock_config.api_base_url = "https://api.test.com"
+            mock_config.vault_path = tmp_path
+            mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
+
+            mock_engine = MagicMock()
+            mock_engine_cls.return_value = mock_engine
+
+            mock_result = MagicMock()
+            mock_result.total_offices = 1
+            mock_result.successful_count = 1
+            mock_result.failed_count = 0
+            mock_result.all_rows = [{"Office": "office1", "count": 1}]
+            mock_result.office_results = []
+            mock_engine.execute.return_value = mock_result
+
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = tmp_path / "export.xlsx"
+            mock_exporter_cls.return_value = mock_exporter
+
+            mock_audit_logger = MagicMock()
+            mock_audit_logger_cls.return_value = mock_audit_logger
+
+            user_input = "SELECT 1;\n\n\n\n\nALL\ny\nn\n"
+            result = runner.invoke(
+                query_command,
+                [],
+                input=user_input,
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            mock_exporter.export.assert_called_once()
+            mock_open_workbook.assert_called_once()
+            assert "HIPAA Reminder" in result.output
+
+    def test_export_flag_skips_prompt(self, tmp_path: Path) -> None:
+        """--export flag should trigger export without interactive confirmation."""
+        runner = CliRunner()
+
+        with (
+            patch("opendental_query.cli.query_cmd.VaultManager") as mock_vault_cls,
+            patch("opendental_query.cli.query_cmd.ConfigManager") as mock_config_cls,
+            patch("opendental_query.cli.query_cmd.QueryEngine") as mock_engine_cls,
+            patch("opendental_query.cli.query_cmd.ProgressIndicator"),
+            patch("opendental_query.cli.query_cmd.ExcelExporter") as mock_exporter_cls,
+            patch("opendental_query.cli.query_cmd.TableRenderer"),
+            patch("opendental_query.cli.query_cmd.AuditLogger") as mock_audit_logger_cls,
+            patch("opendental_query.cli.query_cmd._open_workbook_with_default_app") as mock_open_workbook,
+        ):
+            mock_vault = MagicMock()
+            mock_vault_cls.return_value = mock_vault
+            mock_vault.is_unlocked.return_value = True
+
+            mock_vault_data = MagicMock()
+            mock_vault_data.offices = {"office1": MagicMock(customer_key="key1")}
+            mock_vault_data.developer_key = "dev_key"
+            mock_vault.get_vault.return_value = mock_vault_data
+
+            mock_config = MagicMock()
+            mock_config.api_base_url = "https://api.test.com"
+            mock_config.vault_path = tmp_path
+            mock_config_cls.return_value = MagicMock(load=lambda: mock_config)
+
+            mock_engine = MagicMock()
+            mock_engine_cls.return_value = mock_engine
+
+            mock_result = MagicMock()
+            mock_result.total_offices = 1
+            mock_result.successful_count = 1
+            mock_result.failed_count = 0
+            mock_result.all_rows = [{"Office": "office1", "count": 1}]
+            mock_result.office_results = []
+            mock_engine.execute.return_value = mock_result
+
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = tmp_path / "export.xlsx"
+            mock_exporter_cls.return_value = mock_exporter
+
+            mock_audit_logger = MagicMock()
+            mock_audit_logger_cls.return_value = mock_audit_logger
+
+            result = runner.invoke(
+                query_command,
+                [
+                    "--sql",
+                    "SELECT 1",
+                    "--offices",
+                    "office1",
+                    "--export",
+                ],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            mock_exporter.export.assert_called_once()
+            mock_open_workbook.assert_called_once()
+            assert "Export results to Excel workbook?" not in result.output
             assert "HIPAA Reminder" in result.output

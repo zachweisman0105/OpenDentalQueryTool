@@ -75,7 +75,7 @@ opendental-query query -s "SELECT PatNum, LName, FName FROM patient LIMIT 5"
 opendental-query q -s "SELECT PatNum, LName, FName FROM patient LIMIT 5"
 ```
 
-## 6. Export to CSV
+## 6. Export to Excel
 
 ```bash
 # Single-word shortcut:

@@ -290,19 +290,15 @@ def execute_query(sql: str, timeout: int = 30) -> QueryResult:
     """Execute SQL query against OpenDental API.
     
     Args:
-        sql: SELECT query to execute
+        sql: SQL statement to execute
         timeout: Query timeout in seconds
         
     Returns:
         QueryResult with data and metadata
         
     Raises:
-        InvalidQueryError: If query is not SELECT
         QueryTimeoutError: If query exceeds timeout
     """
-    if not sql.strip().upper().startswith("SELECT"):
-        raise InvalidQueryError("Only SELECT queries allowed")
-    
     return self._execute(sql, timeout)
 ```
 
@@ -471,30 +467,18 @@ When adding features, update:
 
 ```python
 # Good: Clear, documented code
-def validate_query(sql: str) -> None:
-    """Validate SQL query for security.
+def audit_query(sql: str) -> None:
+    """Optional safety hook before executing SQL.
     
-    Ensures query is SELECT-only and doesn't contain dangerous keywords.
-    This is a critical security control to prevent data modification.
-    
-    Args:
-        sql: SQL query to validate
-        
-    Raises:
-        InvalidQueryError: If query is not SELECT or contains forbidden keywords
+    The CLI forwards all SQL to OpenDental. Deployments that require additional
+    safeguards can reuse this helper to enforce site-specific policies.
     """
-    # Remove comments and whitespace
     cleaned = self._clean_query(sql)
     
-    # Check for SELECT
-    if not cleaned.upper().startswith("SELECT"):
-        raise InvalidQueryError("Only SELECT queries are allowed")
-    
-    # Check for forbidden keywords (UPDATE, DELETE, DROP, etc.)
-    forbidden = ["UPDATE", "DELETE", "INSERT", "DROP", "ALTER", "CREATE"]
+    forbidden = ["DROP ", "ALTER ", "TRUNCATE "]
     for keyword in forbidden:
         if keyword in cleaned.upper():
-            raise InvalidQueryError(f"Forbidden keyword: {keyword}")
+            raise RuntimeError(f"Policy violation: forbidden keyword {keyword.strip()} detected")
 ```
 
 ---

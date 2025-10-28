@@ -29,6 +29,23 @@ class AliasedGroup(click.Group):
             "update": "check-update",
             "v": "vault",
             "c": "config",
+            "h": "history",
+            "QuerySave": "saved-query savesimple",
+            "querysave": "saved-query savesimple",
+            "QueryTable": "history create-table",
+            "querytable": "history create-table",
+            "UpdateTable": "history run",
+            "updatetable": "history run",
+            "TableExport": "history export",
+            "tableexport": "history export",
+            "TableImport": "history import-table",
+            "tableimport": "history import-table",
+            "TableList": "history list-tables",
+            "tablelist": "history list-tables",
+            "TableDelete": "history delete",
+            "tabledelete": "history delete",
+            "Persist": "persist",
+            "persist": "persist",
         }
         
         # Check if cmd_name is an alias
@@ -79,7 +96,10 @@ def cli(ctx: click.Context, config_dir: Path, verbose: bool) -> None:
 
 # Import command groups
 from opendental_query.cli.config_cmd import config_group
+from opendental_query.cli.history_cmd import history_group
+from opendental_query.cli.persist_cmd import persist_command
 from opendental_query.cli.query_cmd import query_command
+from opendental_query.cli.saved_query_cmd import saved_query_group
 from opendental_query.cli.update_cmd import check_update
 from opendental_query.cli.vault_cmd import vault
 
@@ -88,6 +108,9 @@ cli.add_command(vault)
 cli.add_command(query_command)
 cli.add_command(config_group)
 cli.add_command(check_update)
+cli.add_command(saved_query_group)
+cli.add_command(persist_command)
+cli.add_command(history_group)
 
 
 def main() -> int:

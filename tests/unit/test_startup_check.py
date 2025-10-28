@@ -24,6 +24,7 @@ from opendental_query.utils.startup_check import (
     check_https_connectivity,
     check_python_version,
     check_vault_exists,
+    check_vault_directory_permissions,
     check_vault_permissions,
     get_remediation_steps,
     run_startup_checks,
@@ -62,7 +63,7 @@ class TestVaultExistenceCheck:
         # Create mock vault
         config_dir = tmp_path / ".opendental-query"
         config_dir.mkdir()
-        vault_file = config_dir / "vault.enc"
+        vault_file = config_dir / "credentials.vault"
         vault_file.write_text("mock vault data")
 
         # Mock DEFAULT_CONFIG_DIR
@@ -89,7 +90,7 @@ class TestVaultPermissionsCheck:
         """Test vault with correct 0600 permissions."""
         config_dir = tmp_path / ".opendental-query"
         config_dir.mkdir()
-        vault_file = config_dir / "vault.enc"
+        vault_file = config_dir / "credentials.vault"
         vault_file.write_text("mock vault data")
 
         # Set correct permissions (may not work on Windows)
@@ -101,7 +102,7 @@ class TestVaultPermissionsCheck:
                 # On Windows, permissions might not be enforced
                 if os.name == "posix":
                     assert success
-                    assert "correct" in message.lower()
+                    assert "0600" in message
         except Exception:
             pytest.skip("Cannot set permissions on this platform")
 
@@ -109,7 +110,7 @@ class TestVaultPermissionsCheck:
         """Test vault with incorrect permissions."""
         config_dir = tmp_path / ".opendental-query"
         config_dir.mkdir()
-        vault_file = config_dir / "vault.enc"
+        vault_file = config_dir / "credentials.vault"
         vault_file.write_text("mock vault data")
 
         # Set incorrect permissions (may not work on Windows)
@@ -120,8 +121,7 @@ class TestVaultPermissionsCheck:
                 success, message = check_vault_permissions()
                 if os.name == "posix":
                     assert not success
-                    assert "incorrect" in message.lower()
-                    assert "chmod" in message
+                    assert "expected 0600" in message
         except Exception:
             pytest.skip("Cannot set permissions on this platform")
 
@@ -133,6 +133,46 @@ class TestVaultPermissionsCheck:
             success, message = check_vault_permissions()
             assert success
             assert "doesn't exist" in message or "skipping" in message.lower()
+
+
+class TestVaultDirectoryPermissionsCheck:
+    """Test vault directory permission validation."""
+
+    def test_directory_permissions_correct(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".opendental-query"
+        config_dir.mkdir()
+
+        try:
+            os.chmod(config_dir, 0o700)
+        except Exception:
+            pytest.skip("Cannot modify directory permissions on this platform")
+
+        with patch("opendental_query.utils.startup_check.DEFAULT_CONFIG_DIR", config_dir):
+            success, message = check_vault_directory_permissions()
+            if os.name == "posix":
+                assert success
+                assert "0700" in message
+
+    def test_directory_permissions_incorrect(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".opendental-query"
+        config_dir.mkdir()
+
+        try:
+            os.chmod(config_dir, 0o755)
+        except Exception:
+            pytest.skip("Cannot modify directory permissions on this platform")
+
+        with patch("opendental_query.utils.startup_check.DEFAULT_CONFIG_DIR", config_dir):
+            success, message = check_vault_directory_permissions()
+            if os.name == "posix":
+                assert not success
+                assert "0700" in message
+
+        # Restore permissions for cleanup
+        try:
+            os.chmod(config_dir, 0o700)
+        except Exception:
+            pass
 
 
 class TestAuditLogCheck:
@@ -246,9 +286,13 @@ class TestRunStartupChecks:
         """Test all checks pass."""
         config_dir = tmp_path / ".opendental-query"
         config_dir.mkdir()
-        vault_file = config_dir / "vault.enc"
+        vault_file = config_dir / "credentials.vault"
         vault_file.write_text("mock vault")
         os.chmod(vault_file, 0o600)
+        try:
+            os.chmod(config_dir, 0o700)
+        except Exception:
+            pass
 
         with patch("opendental_query.utils.startup_check.DEFAULT_CONFIG_DIR", config_dir):
             with respx.mock:
@@ -286,8 +330,12 @@ class TestRunStartupChecks:
         """Test startup checks skip network checks."""
         config_dir = tmp_path / ".opendental-query"
         config_dir.mkdir()
-        vault_file = config_dir / "vault.enc"
+        vault_file = config_dir / "credentials.vault"
         vault_file.write_text("mock vault")
+        try:
+            os.chmod(config_dir, 0o700)
+        except Exception:
+            pass
 
         with patch("opendental_query.utils.startup_check.DEFAULT_CONFIG_DIR", config_dir):
             # Should not raise even without network mock

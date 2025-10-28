@@ -35,7 +35,7 @@ class TestCompleteAuditTrail:
         logger.log_query_executed(sql, ["Main Office", "Branch Office"])
 
         # 5. Export results
-        export_path = Path("C:/Users/Test/Downloads/patient_results.csv")
+        export_path = Path("C:/Users/Test/Downloads/patient_results.xlsx")
         logger.log_export_created(export_path, 42)
 
         # 6. Lock vault
@@ -165,9 +165,9 @@ class TestCompleteAuditTrail:
 
         # Create multiple exports
         exports = [
-            (Path("C:/Users/Alice/Downloads/report1.csv"), 100),
-            (Path("C:/Users/Alice/Downloads/report2.csv"), 50),
-            (Path("C:/Users/Alice/Downloads/report3.csv"), 75),
+            (Path("C:/Users/Alice/Downloads/report1.xlsx"), 100),
+            (Path("C:/Users/Alice/Downloads/report2.xlsx"), 50),
+            (Path("C:/Users/Alice/Downloads/report3.xlsx"), 75),
         ]
 
         for export_path, row_count in exports:

@@ -27,6 +27,7 @@ DEFAULT_CONFIG_FILE: Final[str] = "config.json"
 DEFAULT_VAULT_FILE: Final[str] = "credentials.vault"
 DEFAULT_LOG_FILE: Final[str] = "app.log"
 DEFAULT_AUDIT_FILE: Final[str] = "audit.jsonl"
+DEFAULT_SAVED_QUERIES_FILE: Final[str] = "saved_queries.json"
 
 # Timeouts (in seconds)
 DEFAULT_CONNECT_TIMEOUT: Final[int] = 10

@@ -61,11 +61,11 @@ class TestAuditLoggerJSONLFormat:
         assert len(entry["details"]["office_tokens"]) == 1
         assert re.fullmatch(r"[0-9a-f]{64}", entry["details"]["office_tokens"][0])
 
-    def test_csv_exported_event(self, tmp_path: Path) -> None:
+    def test_export_created_event(self, tmp_path: Path) -> None:
         """Test EXPORT_CREATED event."""
         audit_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(audit_file)
-        export_path = tmp_path / "export.csv"
+        export_path = tmp_path / "export.xlsx"
         logger.log_export_created(export_path=export_path, row_count=150)
 
         entry = json.loads(audit_file.read_text().strip())
@@ -74,7 +74,7 @@ class TestAuditLoggerJSONLFormat:
         details = entry["details"]
         assert details["row_count"] == 150
         assert "filepath" not in details
-        assert details["filename"] == "export.csv"
+        assert details["filename"] == "export.xlsx"
         assert re.fullmatch(r"[0-9a-f]{64}", details["path_hash"])
 
     def test_network_error_event(self, tmp_path: Path) -> None:

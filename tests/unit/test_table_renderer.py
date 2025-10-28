@@ -346,6 +346,42 @@ class TestANSIDetection:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
+    def test_formats_midnight_timestamp_as_short_date(self) -> None:
+        """ISO timestamps at midnight render as short dates."""
+        renderer = TableRenderer(paginate=False)
+        rows = [
+            {"Date": "2025-10-25T00:00:00"},
+            {"Date": "2025-10-25T15:30:00"},
+        ]
+
+        output = StringIO()
+        console = Console(file=output, width=120, legacy_windows=False)
+        renderer.render(rows, console=console)
+
+        result = output.getvalue()
+        assert "10-25-2025" in result
+        assert "2025-10-25T15:30:00" in result
+        assert "2025-10-25T00:00:00" not in result
+
+    def test_sorts_rows_alphabetically_by_office(self) -> None:
+        """Rows should be sorted alphabetically by the Office column."""
+        renderer = TableRenderer(paginate=False)
+        rows = [
+            {"Office": "officeB", "PatNum": "2"},
+            {"Office": "officeA", "PatNum": "1"},
+            {"Office": "officeC", "PatNum": "3"},
+        ]
+
+        output = StringIO()
+        console = Console(file=output, width=120, legacy_windows=False)
+        renderer.render(rows, console=console)
+
+        result = output.getvalue()
+        first_index = result.index('officeA')
+        second_index = result.index('officeB')
+        third_index = result.index('officeC')
+        assert first_index < second_index < third_index
+
     def test_handles_missing_columns_in_rows(self) -> None:
         """Should handle rows with missing columns gracefully."""
         renderer = TableRenderer()

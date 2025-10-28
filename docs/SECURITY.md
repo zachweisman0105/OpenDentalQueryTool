@@ -14,7 +14,7 @@ This tool is designed with HIPAA compliance and security as top priorities. This
 
 **Vault Encryption:**
 - **Master Password**: User-provided password protecting the vault
-  - Minimum 12 characters
+  - No enforced minimum length (choose appropriately for your policy)
   - Must include: uppercase, lowercase, numbers, symbols
   - Hashed with **Argon2id** (memory-hard KDF)
     - Time cost: 3 iterations
@@ -95,13 +95,13 @@ User Input → Memory → Network (HTTPS) → OpenDental API
                 ↓
          Display → Terminal
                 ↓
-         Export → CSV (user-controlled location)
+         Export → Excel workbook (user-controlled location)
 ```
 
 **Key Points:**
 - Query results only in memory
 - No temporary files with PHI
-- CSV export requires explicit user opt-in (`--export` flag or interactive confirmation)
+- Excel export requires explicit user opt-in (`--export` flag or interactive confirmation)
 - Export metadata is logged without plaintext paths (hashed directory + filename)
 
 ---
@@ -221,10 +221,10 @@ Correct-Horse-Battery-Staple-2025!
 - User is responsible for query safety
 - Recommend: Use parameterized queries if available in OpenDental API
 
-**Read-Only Enforcement:**
-- CLI rejects mutating SQL (INSERT/UPDATE/DELETE/REPLACE, temp tables, etc.)
-- Allowed commands: `SELECT`, `SHOW`, `DESC/DESCRIBE`, `EXPLAIN`
-- Non-compliant statements exit with error code 2 and no API call is made
+**Query Safety:**  
+- CLI forwards all SQL directly to OpenDental. The API enforces any server-side restrictions.  
+- Double-check mutating statements and test on limited offices before running broadly.  
+- Prefer auditing and backup procedures when executing updates.
 
 **Query Review:**
 - Review queries before execution
@@ -234,10 +234,10 @@ Correct-Horse-Battery-Staple-2025!
 
 ### Export Security
 
-**CSV Files:**
+**Excel Files:**
 - Export to encrypted drive only
 - Delete after use if possible
-- Never email PHI-containing CSVs
+- Never email PHI-containing Excel workbooks
 - If must share: Use encrypted email (S/MIME, PGP)
 
 **File Locations:**
@@ -387,12 +387,12 @@ If you have security questions or want to report a vulnerability:
 **Version**: 1.0.0
 
 
-### CSV Export Controls
+### Excel Export Controls
 
 The CLI enforces secure export behavior by default:
 
 - Exports are disabled unless the operator uses `--export` or confirms interactively after reviewing results.
 - Export destinations must reside in `~/Downloads`, the default config directory, or an administrator-approved root set via `SPEC_KIT_EXPORT_ROOT`.
 - Set `SPEC_KIT_ALLOW_UNSAFE_EXPORTS=1` only for testing or non-production environments.
-- Optional encryption automation can be configured with `SPEC_KIT_EXPORT_ENCRYPTION_COMMAND` to wrap CSV files in an organization-specific tool.
+- Optional encryption automation can be configured with `SPEC_KIT_EXPORT_ENCRYPTION_COMMAND` to wrap Excel workbooks in an organization-specific tool.
 

@@ -12,7 +12,7 @@ API credentials with features:
 
 import json
 import os
-import re
+import stat
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,7 +34,7 @@ class VaultManager:
 
     Handles all vault operations including initialization, locking/unlocking,
     and CRUD operations on credentials. Provides security features:
-    - Password strength validation (min 12 chars, mixed case, digits, symbols)
+    - Password strength validation (no enforced complexity requirements)
     - Failed attempt tracking with lockout
     - Auto-lock timer on inactivity
     - Secure file permissions
@@ -75,36 +75,64 @@ class VaultManager:
             audit_log_path = vault_path.parent / "audit.jsonl"
         self._audit_logger = AuditLogger(audit_log_path)
 
+    def _enforce_permissions(self) -> None:
+        """Ensure vault directory and file permissions are locked down."""
+        directory = self.vault_path.parent
+
+        # Always ensure directory exists
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+        # Permission adjustments are only meaningful on POSIX systems
+        if os.name != "posix":
+            return
+
+        try:
+            dir_mode = stat.S_IMODE(os.stat(directory).st_mode)
+            if dir_mode & 0o077:
+                try:
+                    os.chmod(directory, 0o700)
+                    logger.warning(
+                        "Adjusted vault directory permissions to 0700 for security: %s", directory
+                    )
+                except OSError as exc:
+                    raise PermissionError(
+                        f"Vault directory {directory} has insecure permissions {oct(dir_mode)} "
+                        "and could not be remediated automatically. "
+                        "Update permissions to 0700 and retry."
+                    ) from exc
+        except OSError as exc:
+            raise PermissionError(f"Unable to inspect vault directory permissions: {exc}") from exc
+
+        if not self.vault_path.exists():
+            return
+
+        try:
+            file_mode = stat.S_IMODE(os.stat(self.vault_path).st_mode)
+            if file_mode != 0o600:
+                try:
+                    os.chmod(self.vault_path, 0o600)
+                    logger.warning(
+                        "Adjusted vault file permissions to 0600 for security: %s",
+                        self.vault_path,
+                    )
+                except OSError as exc:
+                    raise PermissionError(
+                        f"Vault file {self.vault_path} has insecure permissions {oct(file_mode)} "
+                        "and could not be remediated automatically. "
+                        "Set permissions to 0600 and retry."
+                    ) from exc
+        except OSError as exc:
+            raise PermissionError(f"Unable to inspect vault file permissions: {exc}") from exc
+
+    def configure_auto_lock(self, timeout_seconds: int) -> None:
+        """Configure inactivity timeout before auto-locking the vault."""
+        if timeout_seconds < 60:
+            raise ValueError("Auto-lock timeout must be at least 60 seconds")
+        self._auto_lock_timeout = timeout_seconds
+
     def _validate_password_strength(self, password: str) -> None:
-        """Validate password meets strength requirements.
-
-        Requirements:
-        - Minimum 12 characters
-        - At least one uppercase letter
-        - At least one lowercase letter
-        - At least one digit
-        - At least one special character
-
-        Args:
-            password: Password to validate
-
-        Raises:
-            ValueError: If password doesn't meet requirements
-        """
-        if len(password) < PASSWORD_MIN_LENGTH:
-            raise ValueError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters long")
-
-        if not re.search(r"[A-Z]", password):
-            raise ValueError("Password must contain at least one uppercase letter")
-
-        if not re.search(r"[a-z]", password):
-            raise ValueError("Password must contain at least one lowercase letter")
-
-        if not re.search(r"\d", password):
-            raise ValueError("Password must contain at least one digit")
-
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-            raise ValueError("Password must contain at least one special character")
+        """Password strength checks are intentionally disabled."""
+        return
 
     def _is_locked_out(self) -> bool:
         """Check if vault is currently locked due to failed attempts.
@@ -170,6 +198,11 @@ class VaultManager:
         if self.vault_path.exists():
             raise ValueError(f"Vault already exists at {self.vault_path}")
 
+        try:
+            self._enforce_permissions()
+        except PermissionError as exc:
+            raise ValueError(str(exc)) from exc
+
         # Validate password strength
         self._validate_password_strength(password)
 
@@ -219,6 +252,14 @@ class VaultManager:
             ValueError: If vault is locked out or doesn't exist
         """
         with self._lock:
+            try:
+                self._enforce_permissions()
+            except PermissionError as exc:
+                self._audit_logger.log_vault_unlock(
+                    success=False, error=f"permissions_error:{exc}"
+                )
+                raise ValueError(str(exc)) from exc
+
             # Check if locked out
             if self._is_locked_out():
                 time_remaining = (self._lockout_until - datetime.now()).total_seconds()

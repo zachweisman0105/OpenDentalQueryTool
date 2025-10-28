@@ -6,8 +6,13 @@ from pathlib import Path
 
 import httpx
 
-from opendental_query.constants import DEFAULT_CONFIG_DIR, DEFAULT_AUDIT_FILE, DEFAULT_LOG_FILE
-from opendental_query.renderers.csv_exporter import CSVExporter
+from opendental_query.constants import (
+    DEFAULT_AUDIT_FILE,
+    DEFAULT_CONFIG_DIR,
+    DEFAULT_LOG_FILE,
+    DEFAULT_VAULT_FILE,
+)
+from opendental_query.renderers.excel_exporter import ExcelExporter
 from opendental_query.utils.app_logger import cleanup_old_logs, get_logger
 from opendental_query.utils.audit_logger import AuditLogger
 
@@ -39,14 +44,14 @@ def check_python_version() -> tuple[bool, str]:
 
 
 def check_vault_exists() -> tuple[bool, str]:
-    vault_path = DEFAULT_CONFIG_DIR / "vault.enc"
+    vault_path = DEFAULT_CONFIG_DIR / DEFAULT_VAULT_FILE
     if vault_path.exists():
         return True, f"Vault present at {vault_path}"
     return False, f"Vault not found at {vault_path}. Run 'opendental-query vault-init'."
 
 
 def check_vault_permissions() -> tuple[bool, str]:
-    vault_path = DEFAULT_CONFIG_DIR / "vault.enc"
+    vault_path = DEFAULT_CONFIG_DIR / DEFAULT_VAULT_FILE
     if not vault_path.exists():
         return True, "Vault file not created yet (skipping permission check)"
     if os.name == "nt":
@@ -59,6 +64,21 @@ def check_vault_permissions() -> tuple[bool, str]:
         return False, f"Vault permissions are {oct(mode)} (expected 0600)"
     except OSError as exc:
         return False, f"Unable to read vault permissions: {exc}"
+
+
+def check_vault_directory_permissions() -> tuple[bool, str]:
+    vault_dir = DEFAULT_CONFIG_DIR
+    if os.name == "nt":
+        return True, "Vault directory permission check skipped on Windows"
+    if not vault_dir.exists():
+        return True, "Vault directory not created yet (skipping permission check)"
+    try:
+        mode = os.stat(vault_dir).st_mode & 0o777
+        if mode == 0o700:
+            return True, "Vault directory permissions set to 0700"
+        return False, f"Vault directory permissions are {oct(mode)} (expected 0700)"
+    except OSError as exc:
+        return False, f"Unable to read vault directory permissions: {exc}"
 
 
 def check_audit_log_writable() -> tuple[bool, str]:
@@ -82,18 +102,18 @@ def check_downloads_accessible() -> tuple[bool, str]:
 
 
 def check_export_directory_policy() -> tuple[bool, str]:
-    exporter = CSVExporter()
+    exporter = ExcelExporter()
     try:
         default_dir = exporter._resolve_output_dir(None)
         exporter._ensure_secure_directory(default_dir)
         return True, f"Export directory policy OK (default {default_dir})"
     except ValueError as exc:
         return False, (
-            "CSV export directory policy misconfigured: " + str(exc)
+            "Excel export directory policy misconfigured: " + str(exc)
             + "\nSet SPEC_KIT_EXPORT_ROOT to an approved directory or create ~/Downloads with secure permissions."
         )
     except Exception as exc:
-        return False, f"Failed to validate CSV export directory policy: {exc}"
+        return False, f"Failed to validate Excel export directory policy: {exc}"
 
 
 def check_https_connectivity(test_url: str = "https://www.google.com") -> tuple[bool, str]:
@@ -122,6 +142,7 @@ def run_startup_checks(skip_vault: bool = False, skip_network: bool = False) -> 
     if not skip_vault:
         checks.extend([
             ("Vault Exists", check_vault_exists()),
+            ("Vault Directory Permissions", check_vault_directory_permissions()),
             ("Vault Permissions", check_vault_permissions()),
         ])
 
@@ -149,7 +170,8 @@ def get_remediation_steps(check_name: str) -> str | None:
     remediation_map = {
         "Python Version": "Install Python 3.11 or higher from https://www.python.org/",
         "Vault Exists": "Run 'opendental-query vault-init' to create the encrypted vault file.",
-        "Vault Permissions": "Run 'chmod 600 ~/.opendental-query/vault.enc' on Unix-like systems.",
+        "Vault Directory Permissions": "Run 'chmod 700 ~/.opendental-query' on Unix-like systems.",
+        "Vault Permissions": "Run 'chmod 600 ~/.opendental-query/credentials.vault' on Unix-like systems.",
         "Audit Log": "Ensure ~/.opendental-query/ is writable by the current user.",
         "Download Folder": "Create or fix permissions on your Downloads directory.",
         "Export Directory Policy": "Set SPEC_KIT_EXPORT_ROOT to a secure directory or create ~/Downloads.",

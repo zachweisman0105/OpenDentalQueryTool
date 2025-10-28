@@ -1,5 +1,7 @@
 """Unit tests for VaultManager class."""
 
+import os
+import stat
 import time
 from pathlib import Path
 
@@ -58,6 +60,63 @@ class TestVaultInit:
             manager.init(password, developer_key)
 
 
+class TestVaultPermissionHardening:
+    """Tests for automatic permission hardening on unlock."""
+
+    def test_unlock_repairs_insecure_file_permissions(self, tmp_config_dir: Path) -> None:
+        vault_path = tmp_config_dir / "test.vault"
+        password = "SecurePassword123!"
+        developer_key = "dev_key_abc123"
+
+        manager = VaultManager(vault_path)
+        manager.init(password, developer_key)
+        manager.lock()
+
+        if os.name != "posix":
+            pytest.skip("File permission checks are only enforced on POSIX systems")
+
+        os.chmod(vault_path, 0o644)
+        os.chmod(tmp_config_dir, 0o755)
+
+        second_manager = VaultManager(vault_path)
+        assert not second_manager.is_unlocked()
+        second_manager.unlock(password)
+
+        file_mode = stat.S_IMODE(os.stat(vault_path).st_mode)
+        dir_mode = stat.S_IMODE(os.stat(tmp_config_dir).st_mode)
+        assert file_mode == 0o600
+        assert dir_mode == 0o700
+
+    def test_permission_violation_raises_when_not_fixable(
+        self, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        vault_path = tmp_config_dir / "test.vault"
+        password = "SecurePassword123!"
+        developer_key = "dev_key_abc123"
+
+        manager = VaultManager(vault_path)
+        manager.init(password, developer_key)
+        manager.lock()
+
+        if os.name != "posix":
+            pytest.skip("File permission checks are only enforced on POSIX systems")
+
+        original_chmod = os.chmod
+        original_chmod(vault_path, 0o644)
+        original_chmod(tmp_config_dir, 0o755)
+
+        def deny_chmod(_: Path, __: int) -> None:
+            raise PermissionError("chmod denied")
+
+        monkeypatch.setattr("opendental_query.core.vault.os.chmod", deny_chmod)
+
+        second_manager = VaultManager(vault_path)
+        with pytest.raises(ValueError, match="permissions"):
+            second_manager.unlock(password)
+
+        original_chmod(tmp_config_dir, 0o700)
+
+
 class TestPasswordStrength:
     """Tests for password strength validation."""
 
@@ -71,59 +130,55 @@ class TestPasswordStrength:
         manager.init(password, developer_key)  # Should not raise
 
     def test_password_too_short(self, tmp_config_dir: Path) -> None:
-        """Test that password < 12 chars is rejected."""
+        """Password shorter than previous requirement is still accepted."""
         vault_path = tmp_config_dir / "test.vault"
         password = "Short1@"  # Only 7 chars
         developer_key = "dev_key_abc123"
 
         manager = VaultManager(vault_path)
 
-        with pytest.raises(ValueError, match="at least 12 characters"):
-            manager.init(password, developer_key)
+        manager.init(password, developer_key)
+        assert vault_path.exists()
 
     def test_password_no_uppercase(self, tmp_config_dir: Path) -> None:
-        """Test that password without uppercase is rejected."""
+        """Password without uppercase characters is accepted."""
         vault_path = tmp_config_dir / "test.vault"
         password = "lowercase123!@#"  # No uppercase
         developer_key = "dev_key_abc123"
 
         manager = VaultManager(vault_path)
 
-        with pytest.raises(ValueError, match="uppercase"):
-            manager.init(password, developer_key)
+        manager.init(password, developer_key)
 
     def test_password_no_lowercase(self, tmp_config_dir: Path) -> None:
-        """Test that password without lowercase is rejected."""
+        """Password without lowercase characters is accepted."""
         vault_path = tmp_config_dir / "test.vault"
         password = "UPPERCASE123!@#"  # No lowercase
         developer_key = "dev_key_abc123"
 
         manager = VaultManager(vault_path)
 
-        with pytest.raises(ValueError, match="lowercase"):
-            manager.init(password, developer_key)
+        manager.init(password, developer_key)
 
     def test_password_no_digit(self, tmp_config_dir: Path) -> None:
-        """Test that password without digit is rejected."""
+        """Password without digits is accepted."""
         vault_path = tmp_config_dir / "test.vault"
         password = "NoDigitsHere!@#"  # No digits
         developer_key = "dev_key_abc123"
 
         manager = VaultManager(vault_path)
 
-        with pytest.raises(ValueError, match="digit"):
-            manager.init(password, developer_key)
+        manager.init(password, developer_key)
 
     def test_password_no_special_char(self, tmp_config_dir: Path) -> None:
-        """Test that password without special character is rejected."""
+        """Password without special characters is accepted."""
         vault_path = tmp_config_dir / "test.vault"
         password = "NoSpecialChar123"  # No special chars
         developer_key = "dev_key_abc123"
 
         manager = VaultManager(vault_path)
 
-        with pytest.raises(ValueError, match="special character"):
-            manager.init(password, developer_key)
+        manager.init(password, developer_key)
 
 
 class TestVaultLockout:
@@ -213,6 +268,27 @@ class TestVaultLockout:
 
 class TestVaultAutoLock:
     """Tests for 15-minute inactivity auto-lock."""
+
+    def test_configure_auto_lock_updates_timeout(self, tmp_config_dir: Path) -> None:
+        vault_path = tmp_config_dir / "test.vault"
+        password = "SecurePassword123!"
+        developer_key = "dev_key_abc123"
+
+        manager = VaultManager(vault_path)
+        manager.init(password, developer_key)
+        manager.configure_auto_lock(120)
+        assert manager._auto_lock_timeout == 120
+
+    def test_configure_auto_lock_rejects_short_timeout(self, tmp_config_dir: Path) -> None:
+        vault_path = tmp_config_dir / "test.vault"
+        password = "SecurePassword123!"
+        developer_key = "dev_key_abc123"
+
+        manager = VaultManager(vault_path)
+        manager.init(password, developer_key)
+
+        with pytest.raises(ValueError):
+            manager.configure_auto_lock(30)
 
     def test_auto_lock_after_15_minutes(self, tmp_config_dir: Path) -> None:
         """Test that vault auto-locks after 15 minutes of inactivity."""

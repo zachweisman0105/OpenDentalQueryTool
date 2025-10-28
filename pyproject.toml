@@ -29,6 +29,7 @@ dependencies = [
     "pydantic>=2.5",
     "orjson>=3.9",
     "packaging>=23.1",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -57,6 +58,14 @@ Query = "opendental_query.cli.query_cmd:query_command"
 Vault = "opendental_query.cli.shortcuts:vault_shortcut"
 Config = "opendental_query.cli.shortcuts:config_shortcut"
 Update = "opendental_query.cli.shortcuts:update_shortcut"
+QuerySave = "opendental_query.cli.saved_query_cmd:shortcut_save_query"
+Persist = "opendental_query.cli.persist_cmd:persist_command"
+QueryTable = "opendental_query.cli.shortcuts:query_table_shortcut"
+TableExport = "opendental_query.cli.shortcuts:table_export_shortcut"
+TableImport = "opendental_query.cli.shortcuts:table_import_shortcut"
+TableList = "opendental_query.cli.shortcuts:table_list_shortcut"
+TableDelete = "opendental_query.cli.shortcuts:table_delete_shortcut"
+UpdateTable = "opendental_query.cli.shortcuts:update_table_shortcut"
 # Vault subcommand shortcuts
 VaultInit = "opendental_query.cli.shortcuts:vault_init_shortcut"
 VaultAdd = "opendental_query.cli.shortcuts:vault_add_shortcut"

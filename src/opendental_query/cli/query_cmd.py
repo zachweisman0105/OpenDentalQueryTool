@@ -6,28 +6,54 @@ Provides interactive query interface with:
 - Office selection (ALL or comma-separated IDs)
 - Query execution with progress tracking
 - Table rendering for console display
-- CSV export for data persistence
+- Excel export for data persistence
 - Audit logging
 """
 
+import os
+import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import click
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from opendental_query.constants import DEFAULT_CONFIG_DIR
+from opendental_query.constants import (
+    DEFAULT_CONFIG_DIR,
+    EXIT_INVALID_ARGS,
+    EXIT_VAULT_AUTH_FAILED,
+    EXIT_VAULT_LOCKED,
+    MAX_PASSWORD_ATTEMPTS,
+)
 from opendental_query.core.config import ConfigManager
 from opendental_query.core.query_engine import QueryEngine
 from opendental_query.core.vault import VaultManager
 from opendental_query.models.query import OfficeQueryResult, OfficeQueryStatus
-from opendental_query.renderers.csv_exporter import CSVExporter
+from opendental_query.renderers.excel_exporter import ExcelExporter
 from opendental_query.renderers.progress import ProgressIndicator
 from opendental_query.renderers.table import TableRenderer
 from opendental_query.utils.audit_logger import AuditLogger
-from opendental_query.utils.sql_parser import SQLParser
+from opendental_query.utils.saved_queries import SavedQuery, SavedQueryLibrary
+
+
+def _open_workbook_with_default_app(workbook_path: Path, console: Console) -> None:
+    """Attempt to open the exported workbook with the system default application."""
+    try:
+        if sys.platform.startswith("win"):
+            startfile = getattr(os, "startfile", None)
+            if startfile:
+                startfile(str(workbook_path))
+            else:
+                raise OSError("os.startfile not available on this platform")
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(workbook_path)])
+        else:
+            subprocess.Popen(["xdg-open", str(workbook_path)])
+    except Exception as exc:  # pragma: no cover - best effort
+        console.print(f"[yellow]Warning: Unable to open Excel workbook automatically: {exc}[/yellow]")
 
 
 class LiveRowTracker:
@@ -152,6 +178,7 @@ def _execute_single_query(
     timeout_seconds: float,
     export_requested: bool,
     allow_export_prompt: bool,
+    saved_query_name: str | None,
 ) -> int:
     """Execute a single query run, returning an exit code (0/1/2/130)."""
     progress = ProgressIndicator(console=console)
@@ -239,33 +266,34 @@ def _execute_single_query(
         if not should_export and allow_export_prompt:
             console.print()
             should_export = click.confirm(
-                "Export results to CSV? [y/N]",
+                "Export results to Excel workbook? [y/N]",
                 default=False,
                 show_default=False,
             )
 
         if should_export:
-            console.print("\n[cyan]Exporting to CSV...[/cyan]")
-            exporter = CSVExporter()
+            console.print("\n[cyan]Exporting to Excel...[/cyan]")
+            exporter = ExcelExporter()
             try:
-                csv_path = exporter.export(result.all_rows)
-                console.print(f"[green]Exported to: {csv_path}[/green]")
+                workbook_path = exporter.export(result.all_rows)
+                console.print(f"[green]Exported to: {workbook_path}[/green]")
                 console.print(
-                    "[yellow]HIPAA Reminder:[/yellow] Store CSV files on encrypted media, limit distribution, and delete when no longer needed."
+                    "[yellow]HIPAA Reminder:[/yellow] Store Excel files on encrypted media, limit distribution, and delete when no longer needed."
                 )
 
                 audit_logger = AuditLogger()
-                audit_logger.log_csv_export(
-                    filepath=str(csv_path),
+                audit_logger.log_excel_export(
+                    filepath=str(workbook_path),
                     row_count=len(result.all_rows),
                     office_count=len(selected_offices),
                 )
+                _open_workbook_with_default_app(workbook_path, console)
             except Exception as e:
-                console.print(f"[red]CSV export failed: {e}[/red]")
+                console.print(f"[red]Excel export failed: {e}[/red]")
     else:
         console.print("\n[yellow]No results to display[/yellow]")
         if export_requested:
-            console.print("[yellow]CSV export skipped because the query returned no rows.[/yellow]")
+            console.print("[yellow]Excel export skipped because the query returned no rows.[/yellow]")
 
     audit_logger = AuditLogger()
     audit_logger.log_query_execution(
@@ -276,6 +304,20 @@ def _execute_single_query(
         row_count=len(result.all_rows),
     )
 
+    if saved_query_name is not None:
+        try:
+            audit_logger.log(
+                "saved_query_run",
+                success=result.failed_count == 0,
+                details={
+                    "name": saved_query_name,
+                    "row_count": len(result.all_rows),
+                    "office_count": len(selected_offices),
+                },
+            )
+        except Exception:
+            pass
+
     if result.failed_count == 0:
         return 0
     if result.successful_count > 0:
@@ -284,6 +326,11 @@ def _execute_single_query(
 
 
 @click.command(name="query")
+@click.option(
+    "--saved-query",
+    "-S",
+    help="Execute a saved query by name.",
+)
 @click.option(
     "--sql",
     "-s",
@@ -312,11 +359,12 @@ def _execute_single_query(
     "--export",
     "export_results",
     is_flag=True,
-    help="Export results to CSV after execution",
+    help="Export results to an Excel workbook after execution",
 )
 @click.pass_context
 def query_command(
     ctx: click.Context,
+    saved_query: str | None,
     sql: str | None,
     offices: str | None,
     timeout: int,
@@ -325,6 +373,13 @@ def query_command(
 ) -> None:
     """Execute SQL query across multiple offices."""
     console = Console()
+    vault_manager: VaultManager | None = None
+    unlocked_by_command = False
+    initially_unlocked = False
+
+    if saved_query and sql:
+        console.print("[red]Provide either --sql or --saved-query, not both.[/red]")
+        sys.exit(EXIT_INVALID_ARGS)
 
     try:
         ctx_obj = ctx.obj or {}
@@ -332,25 +387,100 @@ def query_command(
         config_manager = ConfigManager(config_dir)
         config = config_manager.load()
 
-        vault_manager = VaultManager(config.vault_path)
-
-        if not vault_manager.is_unlocked():
-            password = click.prompt(
-                "Enter vault password",
-                hide_input=True,
-                type=str,
-            )
-
+        saved_query_record: SavedQuery | None = None
+        saved_query_library = SavedQueryLibrary(config_dir)
+        resolved_sql = sql
+        resolved_offices = offices
+        if saved_query:
             try:
-                vault_manager.unlock(password)
-            except ValueError as e:
-                console.print(f"[red]Failed to unlock vault: {e}[/red]")
-                sys.exit(2)
+                saved_query_record = saved_query_library.get_query(saved_query)
+            except KeyError:
+                console.print(f"[red]Saved query '{saved_query}' not found.[/red]")
+                sys.exit(EXIT_INVALID_ARGS)
 
-        interactive_loop = sql is None and offices is None
-        current_sql = sql
-        current_offices = offices
+            console.print(f"[cyan]Running saved query '{saved_query_record.name}'.[/cyan]")
+            resolved_sql = saved_query_record.sql
+            if resolved_offices is None:
+                if saved_query_record.default_offices == ["ALL"]:
+                    resolved_offices = "ALL"
+                elif saved_query_record.default_offices:
+                    resolved_offices = ",".join(saved_query_record.default_offices)
+            try:
+                audit_logger = AuditLogger()
+                audit_logger.log(
+                    "saved_query_load",
+                    success=True,
+                    details={
+                        "name": saved_query_record.name,
+                        "has_default_offices": bool(saved_query_record.default_offices),
+                    },
+                )
+            except Exception:
+                pass
+
+        saved_query_mode = saved_query_record is not None
+
+        vault_manager = VaultManager(config.vault_path)
+        try:
+            vault_manager.configure_auto_lock(config.vault_auto_lock_seconds)
+        except Exception as exc:
+            console.print(f"[yellow]Warning: Invalid auto-lock configuration: {exc}[/yellow]")
+
+        initially_unlocked = vault_manager.is_unlocked()
+        unlocked_by_command = False
+
+        if not initially_unlocked:
+            attempts_remaining = MAX_PASSWORD_ATTEMPTS
+            while attempts_remaining > 0 and not vault_manager.is_unlocked():
+                prompt_label = "Enter vault password"
+                if attempts_remaining < MAX_PASSWORD_ATTEMPTS:
+                    prompt_label = (
+                        f"Re-enter vault password ({attempts_remaining} attempt(s) remaining)"
+                    )
+
+                password = click.prompt(
+                    prompt_label,
+                    hide_input=True,
+                    type=str,
+                )
+
+                try:
+                    unlocked = vault_manager.unlock(password)
+                    if unlocked:
+                        unlocked_by_command = True
+                        break
+                except ValueError as e:
+                    message = str(e)
+                    console.print(f"[red]{message}[/red]")
+                    lowered = message.lower()
+                    if "locked due to failed attempts" in lowered or "locked due to failed" in lowered:
+                        sys.exit(EXIT_VAULT_LOCKED)
+                    sys.exit(EXIT_VAULT_AUTH_FAILED)
+                finally:
+                    # Drop password reference as soon as possible
+                    password = ""
+
+                attempts_remaining -= 1
+                if vault_manager.is_unlocked():
+                    unlocked_by_command = True
+                    break
+                if attempts_remaining > 0:
+                    console.print(
+                        f"[yellow]Invalid password. {attempts_remaining} attempt(s) remaining.[/yellow]"
+                    )
+
+            if not vault_manager.is_unlocked():
+                console.print("[red]Maximum password attempts reached. Vault remains locked.[/red]")
+                sys.exit(EXIT_VAULT_AUTH_FAILED)
+
+        if saved_query_mode:
+            interactive_loop = resolved_offices is None
+        else:
+            interactive_loop = resolved_sql is None and resolved_offices is None
+        current_sql = resolved_sql
+        current_offices = resolved_offices
         overall_exit_code = 0
+        office_prompt_confirms_remaining = 0 if saved_query_mode else (3 if interactive_loop else 0)
 
         while True:
             vault_data = vault_manager.get_vault()
@@ -366,6 +496,7 @@ def query_command(
                         break
                     current_sql = None
                     current_offices = None
+                    office_prompt_confirms_remaining = 3
                     continue
                 sys.exit(2)
 
@@ -395,22 +526,30 @@ def query_command(
                     continue
                 sys.exit(1)
 
-            if not SQLParser.is_read_only(current_sql):
-                console.print(
-                    "[red]Only read-only SQL statements are permitted (SELECT, SHOW, DESCRIBE, EXPLAIN).[/red]"
-                )
-                overall_exit_code = max(overall_exit_code, 2)
-                if interactive_loop:
-                    current_sql = None
-                    continue
-                sys.exit(2)
-
             if current_offices is None:
-                console.print("\n[cyan]Available offices:[/cyan]")
-                for office_id in vault_data.offices.keys():
-                    console.print(f"  - {office_id}")
-                console.print("\n[cyan]Enter office IDs (comma-separated) or 'ALL':[/cyan]")
-                current_offices = input().strip()
+                if interactive_loop and office_prompt_confirms_remaining > 0:
+                    while office_prompt_confirms_remaining > 0 and current_offices is None:
+                        try:
+                            response = input()
+                        except EOFError:
+                            response = ""
+                        stripped = response.strip()
+                        if stripped:
+                            current_offices = stripped
+                            break
+                        office_prompt_confirms_remaining -= 1
+                    if current_offices is None and office_prompt_confirms_remaining > 0:
+                        continue
+
+                if current_offices is None:
+                    console.print("\n[cyan]Available offices:[/cyan]")
+                    for office_id in vault_data.offices.keys():
+                        console.print(f"  - {office_id}")
+                    prompt_text = "\n[cyan]Enter office IDs (comma-separated) or 'ALL':[/cyan]"
+                    if saved_query:
+                        prompt_text = "\n[cyan]Enter office IDs for saved query (comma-separated) or 'ALL':[/cyan]"
+                    console.print(prompt_text)
+                    current_offices = input().strip()
 
             if current_offices.upper() == "ALL":
                 selected_offices = list(vault_data.offices.keys())
@@ -477,6 +616,7 @@ def query_command(
                 timeout_seconds=float(timeout),
                 export_requested=export_results,
                 allow_export_prompt=interactive_loop,
+                saved_query_name=saved_query_record.name if saved_query_record else None,
             )
 
             if exit_code == 130:
@@ -491,8 +631,12 @@ def query_command(
             if not click.confirm("\nRun another query?", default=False):
                 break
 
+            if saved_query_mode:
+                saved_query_mode = False
             current_sql = None
+            interactive_loop = True
             current_offices = None
+            office_prompt_confirms_remaining = 3
 
         sys.exit(overall_exit_code)
 
@@ -502,3 +646,9 @@ def query_command(
     except Exception as e:
         console.print(f"\n[red]Unexpected error: {e}[/red]")
         sys.exit(2)
+    finally:
+        if vault_manager is not None and unlocked_by_command and vault_manager.is_unlocked():
+            try:
+                vault_manager.lock()
+            except Exception as exc:  # pragma: no cover - best effort cleanup
+                console.print(f"[yellow]Warning: Failed to lock vault cleanly: {exc}[/yellow]")

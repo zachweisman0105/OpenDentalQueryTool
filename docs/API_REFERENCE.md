@@ -23,7 +23,7 @@ def init(password: str, developer_key: str) -> None:
     """Initialize a new vault with master password.
     
     Args:
-        password: Master password (min 12 chars, mixed case, numbers, symbols)
+        password: Master password (no enforced complexity requirements)
         developer_key: OpenDental DeveloperKey (global API credential)
         
     Raises:
@@ -152,7 +152,7 @@ def execute_query(
     """Execute SQL query across offices in parallel.
     
     Args:
-        query: SQL SELECT query to execute
+        query: SQL query to execute
         office_ids: List of office IDs to query (None = all offices)
         timeout_seconds: Per-office query timeout
         
@@ -161,7 +161,6 @@ def execute_query(
         
     Raises:
         VaultLockedError: If vault is not unlocked
-        InvalidQueryError: If query is not a SELECT statement
         NoOfficesError: If no offices to query
     """
 
@@ -264,7 +263,7 @@ query.max_retries: int = 3                # Retry failed queries
 
 # Export settings
 export.default_directory: str = "~/Downloads"
-export.include_office_column: bool = True  # Add Office column to CSV
+export.include_office_column: bool = True  # Add Office column to export
 export.timestamp_format: str = "%Y%m%d_%H%M%S"
 
 # Logging settings
@@ -318,7 +317,7 @@ def log_query_executed(sql: str, offices: List[str]) -> None:
     """
 
 def log_export_created(export_path: Path, row_count: int) -> None:
-    """Log CSV export creation."""
+    """Log export creation."""
 
 def log_authentication_failed(reason: str) -> None:
     """Log failed authentication attempt."""
@@ -374,29 +373,29 @@ def render(query_result: MergedQueryResult) -> str:
 
 ---
 
-### `opendental_query.renderers.csv_exporter`
+### `opendental_query.renderers.excel_exporter`
 
-#### `CSVExporter`
+#### `ExcelExporter`
 
-Export query results to CSV files.
+Export query results to formatted Excel workbooks.
 
-**Class:** `CSVExporter(output_dir: Path)`
+**Class:** `ExcelExporter(output_dir: Path | None = None)`
 
 **Methods:**
 
 ```python
 def export(
-    query_result: MergedQueryResult,
-    filename: Optional[str] = None
+    rows: list[dict[str, Any]],
+    output_dir: Path | None = None,
 ) -> Path:
-    """Export query results to CSV file.
+    """Export query results to an Excel workbook.
     
     Args:
-        query_result: Query results to export
-        filename: Optional custom filename (auto-generated if None)
+        rows: Rows to export
+        output_dir: Optional target directory (defaults to secure Downloads directory)
         
     Returns:
-        Path to created CSV file
+        Path to created workbook
     """
 ```
 
@@ -516,8 +515,8 @@ opendental-query query [OPTIONS]
 Options:
   --office TEXT       Office IDs to query (comma-separated, or ALL)
   --timeout INTEGER   Query timeout in seconds (default: 30)
-  --export            Export results to CSV
-  --output PATH       Output CSV file path
+  --export            Export results to Excel
+  --output PATH       Output Excel file path
 ```
 
 ### Configuration

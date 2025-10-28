@@ -7,3 +7,4 @@ rich>=13.7
 click>=8.1
 pydantic>=2.5
 orjson>=3.9
+openpyxl>=3.1

@@ -141,26 +141,12 @@ ls -la ~/.opendental-query/vault.enc
 
 ## Query Execution Issues
 
-### ❌ Invalid Query Error
+### ⚠️ Query Rejected by Server
 
-**Error:**
-```
-InvalidQueryError: Only SELECT queries are allowed
-```
-
-**Solution:**
-```sql
--- ✅ Valid queries
-SELECT * FROM patient LIMIT 10
-SELECT COUNT(*) FROM appointment
-SELECT PatNum, LName FROM patient WHERE PatNum = 123
-
--- ❌ Invalid queries (not allowed)
-UPDATE patient SET LName = 'Smith'  -- No updates
-DELETE FROM patient WHERE PatNum = 1  -- No deletes
-INSERT INTO patient (LName) VALUES ('Jones')  -- No inserts
-DROP TABLE patient  -- No DDL
-```
+When the API returns an error (for example HTTP 400/403) after submitting SQL,
+OpenDental has rejected the statement. Review the syntax, confirm the user or API key
+has the required permissions, and consider testing your logic with a `SELECT` statement
+before issuing mutating commands that change data.
 
 ### ❌ Query Timeout
 
@@ -318,11 +304,11 @@ chcp 65001  # Set PowerShell to UTF-8
 
 ## Export Issues
 
-### ❌ CSV Export Failed
+### ❌ Excel Export Failed
 
 **Error:**
 ```
-PermissionError: [Errno 13] Permission denied: '/path/to/export.csv'
+PermissionError: [Errno 13] Permission denied: '/path/to/export.xlsx'
 ```
 
 **Solution:**
@@ -334,24 +320,17 @@ ls -ld ~/Downloads/
 opendental-query config set export.default_directory "/tmp"
 
 # Or use CLI flag
-opendental-query query --export --output /tmp/results.csv
+opendental-query query --export --output /tmp/results.xlsx
 ```
 
-### ❌ CSV File Corrupted
+### ❌ Excel Workbook Won't Open
 
-**Issue:** Excel shows garbled characters
+**Issue:** Excel reports the workbook is corrupt or opens as blank data.
 
 **Solution:**
-```bash
-# Export with BOM for Excel compatibility
-# (Feature request - manual workaround:)
-
-# Add BOM to CSV
-printf '\xEF\xBB\xBF' | cat - export.csv > export_with_bom.csv
-
-# Or open in Excel:
-# Data > From Text/CSV > UTF-8 encoding
-```
+- Re-run the export to regenerate a fresh workbook (overwriting the previous file).
+- Ensure antivirus or backup utilities are not locking the file during export.
+- If an encryption command is configured via `SPEC_KIT_EXPORT_ENCRYPTION_COMMAND`, verify the script finishes without errors.
 
 ---
 
@@ -394,7 +373,7 @@ printf '\xEF\xBB\xBF' | cat - export.csv > export_with_bom.csv
 # Use LIMIT to reduce result size
 SELECT * FROM patient LIMIT 1000
 
-# Export directly to CSV (streams results)
+# Export directly to Excel (streams results)
 opendental-query query --export
 
 # Query offices sequentially (not parallel)

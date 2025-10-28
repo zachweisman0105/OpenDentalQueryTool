@@ -67,7 +67,7 @@ This will prompt you for each office's CustomerKey, then ask for your master pas
 Query -s "SELECT PatNum, LName, FName FROM patient LIMIT 10" -o ALL
 ```
 
-### Export Results to CSV
+### Export Results to Excel
 ```bash
 Query --export -s "SELECT * FROM appointment WHERE AptDateTime > '2025-10-01'" -o ALL
 ```

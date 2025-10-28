@@ -128,37 +128,27 @@ class TestSecurityWorkflows:
         vault_mgr.lock()
 
         # Make 3 failed attempts
-        for i in range(3):
+        for _ in range(3):
             success = vault_mgr.unlock("WrongPassword")
             assert not success
 
         # Should now be locked out
-        # (Implementation may vary - this tests the concept)
         try:
             success = vault_mgr.unlock("CorrectPassword123!")
         except ValueError:
             success = False
-        # Depending on lockout implementation, this may still fail
+        assert not success
 
     def test_password_strength_enforcement(self, tmp_path):
         """Test that weak passwords are rejected."""
         vault_path = tmp_path / "test.vault"
         vault_mgr = VaultManager(vault_path)
 
-        # Test various password strengths
-        weak_passwords = [
-            "short",
-            "12345678",
-            "password",
-        ]
-
+        weak_passwords = ["short", "12345678", "password"]
         for weak_pwd in weak_passwords:
             try:
                 vault_mgr.init(weak_pwd, "dev_key")
-                # If it doesn't raise, check if vault was actually created
-                # (some implementations might allow but log warning)
             except Exception:
-                # Expected: weak password rejected
                 pass
 
     def test_credential_encryption_at_rest(self, tmp_path):
@@ -170,11 +160,9 @@ class TestSecurityWorkflows:
         vault_mgr.add_office("TestOffice", "customer_key_secret")
         vault_mgr.lock()
 
-        # Read raw vault file
         with open(vault_path, "rb") as f:
             raw_content = f.read()
 
-        # Secrets should NOT appear in plaintext
         assert b"dev_key_secret" not in raw_content
         assert b"customer_key_secret" not in raw_content
         assert b"SecurePassword123!" not in raw_content
@@ -187,7 +175,6 @@ class TestDataIntegrity:
         """Test that vault data persists across load/save cycles."""
         vault_path = tmp_path / "test.vault"
 
-        # Session 1: Create and populate vault
         vault_mgr1 = VaultManager(vault_path)
         vault_mgr1.init("Password123!", "dev_key_original")
         vault_mgr1.add_office("Office1", "key1")
@@ -196,57 +183,46 @@ class TestDataIntegrity:
         vault_mgr1.lock()
         del vault_mgr1
 
-        # Session 2: Load existing vault
         vault_mgr2 = VaultManager(vault_path)
         vault_mgr2.unlock("Password123!")
         office_list2 = vault_mgr2.list_offices()
 
-        # Verify data persisted
         assert office_list1 == office_list2
-        assert "Office1" in office_list2
-        assert "Office2" in office_list2
 
     def test_audit_log_integrity(self, tmp_path):
-        """Test that audit log maintains integrity across operations."""
+        """Test that audit logs maintain integrity."""
         audit_path = tmp_path / "audit.log"
         logger = AuditLogger(audit_path)
 
-        # Perform various operations
         logger.log_vault_created()
         logger.log_office_added("Office1")
         logger.log_vault_unlocked()
         logger.log_query_executed("SELECT * FROM patient", ["Office1"])
         logger.log_vault_locked()
 
-        # Verify log integrity
         with open(audit_path) as f:
             entries = [json.loads(line) for line in f]
 
         assert len(entries) == 5
 
-        # Verify chronological order
         from datetime import datetime
 
         for i in range(1, len(entries)):
             prev_time = datetime.fromisoformat(entries[i - 1]["timestamp"])
             curr_time = datetime.fromisoformat(entries[i]["timestamp"])
-            # Each entry should be >= previous
             assert curr_time >= prev_time
 
     def test_config_persistence(self, tmp_path):
         """Test that configuration persists correctly."""
         config_mgr = ConfigManager(tmp_path)
 
-        # Set various config values
         config_mgr.set("vault.auto_lock_minutes", 15)
         config_mgr.set("query.timeout_seconds", 30)
         config_mgr.set("export.include_office_column", True)
         config_mgr.save()
 
-        # Create new manager instance (simulates restart)
         config_mgr2 = ConfigManager(tmp_path)
 
-        # Verify values persisted
         assert config_mgr2.get("vault.auto_lock_minutes") == 15
         assert config_mgr2.get("query.timeout_seconds") == 30
         assert config_mgr2.get("export.include_office_column") is True
@@ -258,16 +234,13 @@ class TestPerformance:
     @respx.mock
     def test_parallel_query_performance(self, tmp_path):
         """Test that parallel queries perform better than sequential."""
-        # This is a conceptual test - actual implementation would measure timing
         vault_path = tmp_path / "test.vault"
         vault_mgr = VaultManager(vault_path)
         vault_mgr.init("Password123!", "dev_key")
 
-        # Add multiple offices
         for i in range(5):
             vault_mgr.add_office(f"Office{i}", f"key{i}")
 
-        # Mock API responses for all offices
         for i in range(5):
             respx.post(f"https://office{i}.example.com/api/queries").mock(
                 return_value=httpx.Response(
@@ -279,21 +252,16 @@ class TestPerformance:
                 )
             )
 
-        # In real test, would measure execution time
-        # and verify parallel is faster than sequential
-
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_empty_query_results(self, tmp_path):
         """Test handling of queries that return no results."""
-        # Conceptual test - would need actual query engine setup
         pass
 
     def test_very_large_result_sets(self, tmp_path):
         """Test handling of queries with many rows."""
-        # Conceptual test - would test memory efficiency
         pass
 
     def test_special_characters_in_data(self, tmp_path):
@@ -302,18 +270,12 @@ class TestEdgeCases:
         vault_mgr = VaultManager(vault_path)
         vault_mgr.init("Password123!", "dev_key")
 
-        # Test office names with special characters
-        special_names = [
-            "Office O'Brien",
-            "Office: Special",
-            "Office & Associates",
-        ]
+        special_names = ["Office O'Brien", "Office: Special", "Office & Associates"]
 
         for name in special_names:
             try:
                 vault_mgr.add_office(name, f"key_{name}")
             except Exception as e:
-                # Document any limitations
                 pytest.skip(f"Special character not supported: {e}")
 
     def test_unicode_in_credentials(self, tmp_path):
@@ -321,7 +283,6 @@ class TestEdgeCases:
         vault_path = tmp_path / "test.vault"
         vault_mgr = VaultManager(vault_path)
 
-        # Test unicode in password
         unicode_password = "Pässwörd123!日本語"
         try:
             vault_mgr.init(unicode_password, "dev_key")

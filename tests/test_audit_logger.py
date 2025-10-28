@@ -294,16 +294,16 @@ class TestAuditLoggerAdditionalMethods:
             assert re.fullmatch(r"[0-9a-f]{64}", token)
         assert "query" not in entry["details"]
 
-    def test_log_csv_export(self, sample_audit_file: Path) -> None:
-        """Test logging CSV export with file hash."""
+    def test_log_excel_export(self, sample_audit_file: Path) -> None:
+        """Test logging Excel export with file hash."""
         logger = AuditLogger(sample_audit_file)
 
-        # Create a test CSV file
-        csv_file = sample_audit_file.parent / "test.csv"
-        csv_file.write_text("id,name\n1,test\n")
+        # Create a test Excel file
+        workbook_path = sample_audit_file.parent / "test.xlsx"
+        workbook_path.write_bytes(b"dummy excel content")
 
-        logger.log_csv_export(
-            filepath=str(csv_file),
+        logger.log_excel_export(
+            filepath=str(workbook_path),
             row_count=1,
             office_count=1,
         )
@@ -311,7 +311,7 @@ class TestAuditLoggerAdditionalMethods:
         lines = sample_audit_file.read_text().strip().split("\n")
         entry = json.loads(lines[0])
 
-        assert entry["event_type"] == "csv_export"
+        assert entry["event_type"] == "excel_export"
         assert entry["success"] is True
         details = entry["details"]
         assert details["row_count"] == 1
@@ -319,15 +319,15 @@ class TestAuditLoggerAdditionalMethods:
         assert "sha256" in details
         assert details["sha256"] != "unknown"
         assert "filepath" not in details
-        assert details["filename"] == "test.csv"
+        assert details["filename"] == "test.xlsx"
         assert re.fullmatch(r"[0-9a-f]{64}", details["path_hash"])
 
-    def test_log_csv_export_missing_file(self, sample_audit_file: Path) -> None:
-        """Test CSV export logging handles missing file gracefully."""
+    def test_log_excel_export_missing_file(self, sample_audit_file: Path) -> None:
+        """Test Excel export logging handles missing file gracefully."""
         logger = AuditLogger(sample_audit_file)
 
-        logger.log_csv_export(
-            filepath="/nonexistent/file.csv",
+        logger.log_excel_export(
+            filepath="/nonexistent/file.xlsx",
             row_count=0,
             office_count=0,
         )
@@ -335,11 +335,11 @@ class TestAuditLoggerAdditionalMethods:
         lines = sample_audit_file.read_text().strip().split("\n")
         entry = json.loads(lines[0])
 
-        assert entry["event_type"] == "csv_export"
+        assert entry["event_type"] == "excel_export"
         details = entry["details"]
         assert details["sha256"] == "unknown"
         assert "filepath" not in details
-        assert details["filename"] == "file.csv"
+        assert details["filename"] == "file.xlsx"
         assert re.fullmatch(r"[0-9a-f]{64}", details["path_hash"])
 
     def test_log_update_checked_success(self, sample_audit_file: Path) -> None:

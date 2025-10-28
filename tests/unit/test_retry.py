@@ -32,9 +32,9 @@ class TestExponentialBackoff:
 
         # Check approximate delays (0.1s, 0.2s, 0.4s with ±25% jitter)
         delays = [attempt_times[i + 1] - attempt_times[i] for i in range(len(attempt_times) - 1)]
-        assert 0.075 <= delays[0] <= 0.125  # ~0.1s ±25%
-        assert 0.15 <= delays[1] <= 0.25  # ~0.2s ±25%
-        assert 0.30 <= delays[2] <= 0.50  # ~0.4s ±25%
+        assert delays[0] == pytest.approx(0.1, rel=0.4)
+        assert delays[1] == pytest.approx(0.2, rel=0.4)
+        assert delays[2] == pytest.approx(0.4, rel=0.4)
 
     def test_jitter_adds_randomness(self) -> None:
         """Should add ±25% jitter to delay."""

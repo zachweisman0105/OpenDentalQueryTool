@@ -39,7 +39,7 @@ Welcome to the OpenDental Multi-Office Query Tool documentation.
 
 - **[API_REFERENCE.md](API_REFERENCE.md)** - Complete Python API documentation
   - Core modules (VaultManager, QueryEngine, ConfigManager, AuditLogger)
-  - Renderers (TableRenderer, CSVExporter)
+  - Renderers (TableRenderer, ExcelExporter)
   - Data models (QueryResult, MergedQueryResult, etc.)
   - Exceptions
   - CLI commands

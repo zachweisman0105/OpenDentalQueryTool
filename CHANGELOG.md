@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive documentation for all command shortcuts and aliases
 - Updated documentation in README.md, quickstart.md, and new COMMAND_ALIASES.md
 
+### Changed
+- `opendental-query query` now forwards all SQL statements to the OpenDental API, allowing the server to decide whether a statement is permitted.
+
 ### Planned
 - Software update checker (GitHub releases integration)
 - CI/CD pipeline (automated testing and releases)
@@ -76,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unicode and special character handling
 
 #### Export Features
-- **CSV export** with UTF-8 encoding
+- **Excel export** with table formatting
 - **Rich table rendering** in terminal
 - Configurable default export directory
 - Automatic file timestamp generation
@@ -178,7 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Phase 8: Excel UX (US6)
 - TableRenderer with Rich library
-- CSV export functionality
+- Excel export functionality
 - Column formatting
 - Large dataset handling
 - Export configuration options

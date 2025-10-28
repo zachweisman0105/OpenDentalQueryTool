@@ -137,3 +137,49 @@ def vault_destroy_shortcut() -> None:
     sys.argv.insert(2, "destroy")
     cli(obj={})
 
+
+def query_table_shortcut() -> None:
+    """Entry point for 'QueryTable' command."""
+    sys.argv[0] = "opendental-query"
+    sys.argv.insert(1, "history")
+    sys.argv.insert(2, "create-table")
+    cli(obj={})
+
+
+def table_export_shortcut() -> None:
+    """Entry point for 'TableExport' command."""
+    sys.argv[0] = "opendental-query"
+    sys.argv.insert(1, "history")
+    sys.argv.insert(2, "export")
+    cli(obj={})
+
+
+def update_table_shortcut() -> None:
+    """Entry point for 'UpdateTable' command."""
+    sys.argv[0] = "opendental-query"
+    sys.argv.insert(1, "history")
+    sys.argv.insert(2, "run")
+    cli(obj={})
+
+
+def table_delete_shortcut() -> None:
+    """Entry point for 'TableDelete' command."""
+    sys.argv[0] = "opendental-query"
+    sys.argv.insert(1, "history")
+    sys.argv.insert(2, "delete")
+    cli(obj={})
+
+
+def table_import_shortcut() -> None:
+    """Entry point for 'TableImport' command."""
+    sys.argv[0] = "opendental-query"
+    sys.argv.insert(1, "history")
+    sys.argv.insert(2, "import-table")
+    cli(obj={})
+
+def table_list_shortcut() -> None:
+    """Entry point for 'TableList' command."""
+    sys.argv[0] = "opendental-query"
+    sys.argv.insert(1, "history")
+    sys.argv.insert(2, "list-tables")
+    cli(obj={})
