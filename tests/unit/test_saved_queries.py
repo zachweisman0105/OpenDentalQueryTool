@@ -67,3 +67,31 @@ class TestSavedQueryLibrary:
         library = SavedQueryLibrary(tmp_path)
         with pytest.raises(ValueError):
             library.save_query("   ", "SELECT 1")
+
+    def test_rename_office_updates_default_offices(self, tmp_path: Path) -> None:
+        library = SavedQueryLibrary(tmp_path)
+        library.save_query(
+            "report",
+            "SELECT 1",
+            default_offices=["office1", "office2"],
+        )
+        library.save_query(
+            "other",
+            "SELECT 2",
+            default_offices=["office3"],
+        )
+
+        updated = library.rename_office("office1", "main-office")
+
+        assert updated == 1
+        assert library.get_query("report").default_offices == ["main-office", "office2"]
+        assert library.get_query("other").default_offices == ["office3"]
+
+    def test_rename_office_returns_zero_when_not_found(self, tmp_path: Path) -> None:
+        library = SavedQueryLibrary(tmp_path)
+        library.save_query("report", "SELECT 1", default_offices=["office1"])
+
+        updated = library.rename_office("missing", "new-name")
+
+        assert updated == 0
+        assert library.get_query("report").default_offices == ["office1"]

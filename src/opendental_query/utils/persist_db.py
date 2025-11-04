@@ -147,30 +147,36 @@ class _EncryptedDatabaseContext:
     def __init__(self, db_path: Path, fernet: Fernet) -> None:
         self._db_path = db_path
         self._fernet = fernet
-        self._temp_file: tempfile.NamedTemporaryFile | None = None
+        self._temp_path: Path | None = None
         self.connection: sqlite3.Connection | None = None
 
     def __enter__(self) -> sqlite3.Connection:
-        self._temp_file = tempfile.NamedTemporaryFile(delete=False)
+        fd, temp_path = tempfile.mkstemp()
+        os.close(fd)
+        self._temp_path = Path(temp_path)
         if self._db_path.exists():
             encrypted = self._db_path.read_bytes()
             if encrypted:
                 decrypted = self._fernet.decrypt(encrypted)
-                self._temp_file.write(decrypted)
-                self._temp_file.flush()
-        self.connection = sqlite3.connect(self._temp_file.name)
+                self._temp_path.write_bytes(decrypted)
+        self.connection = sqlite3.connect(str(self._temp_path))
         return self.connection
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if self.connection is not None:
             self.connection.close()
-        if self._temp_file is not None:
-            self._temp_file.close()
-            if exc_type is None:
-                with open(self._temp_file.name, "rb") as tmp:
-                    data = tmp.read()
-                encrypted = self._fernet.encrypt(data)
-                self._db_path.write_bytes(encrypted)
-            os.unlink(self._temp_file.name)
-
+            self.connection = None
+        if self._temp_path is not None:
+            try:
+                if exc_type is None:
+                    with self._temp_path.open("rb") as tmp:
+                        data = tmp.read()
+                    encrypted = self._fernet.encrypt(data)
+                    self._db_path.write_bytes(encrypted)
+            finally:
+                try:
+                    self._temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                self._temp_path = None
 

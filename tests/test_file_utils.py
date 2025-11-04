@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from opendental_query.constants import EXIT_FILE_ERROR
+from opendental_query.constants import EXIT_FILE_ERROR, EXIT_PERMISSION_ERROR
 from opendental_query.utils.file_utils import (
     ensure_directory,
     read_json_file,
@@ -211,3 +211,92 @@ class TestRoundTrip:
 
         # Should be identical
         assert result == original_data
+
+
+class TestFileUtilsErrorHandling:
+    """Additional error-handling scenarios for file utilities."""
+
+    def test_ensure_directory_permission_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_logger: list[tuple[str, str]]
+    ) -> None:
+        """Permission errors should exit with the correct code and log a message."""
+        target = tmp_path / "denied"
+
+        def _raise_permission(self, *args: object, **kwargs: object) -> None:
+            raise PermissionError("no access")
+
+        monkeypatch.setattr(Path, "mkdir", _raise_permission)
+
+        with pytest.raises(SystemExit) as exc:
+            ensure_directory(target)
+
+        assert exc.value.code == EXIT_PERMISSION_ERROR
+        assert any("Permission denied" in message for _, message in mock_logger)
+
+    def test_ensure_directory_oserror(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_logger: list[tuple[str, str]]
+    ) -> None:
+        """Generic OS errors should surface as file errors."""
+        target = tmp_path / "broken"
+
+        def _raise_oserror(self, *args: object, **kwargs: object) -> None:
+            raise OSError("disk full")
+
+        monkeypatch.setattr(Path, "mkdir", _raise_oserror)
+
+        with pytest.raises(SystemExit) as exc:
+            ensure_directory(target)
+
+        assert exc.value.code == EXIT_FILE_ERROR
+        assert any("Failed to create directory" in message for _, message in mock_logger)
+
+    def test_read_json_permission_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_logger: list[tuple[str, str]]
+    ) -> None:
+        """Permission issues when reading should map to permission exit codes."""
+        target = tmp_path / "data.json"
+
+        def _raise_open(*args: object, **kwargs: object) -> None:
+            raise PermissionError("locked down")
+
+        monkeypatch.setattr(Path, "open", _raise_open)
+
+        with pytest.raises(SystemExit) as exc:
+            read_json_file(target)
+
+        assert exc.value.code == EXIT_PERMISSION_ERROR
+        assert any("Permission denied reading" in message for _, message in mock_logger)
+
+    def test_write_json_permission_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_logger: list[tuple[str, str]]
+    ) -> None:
+        """Permission errors when writing should be surfaced with proper exit code."""
+        target = tmp_path / "output.json"
+
+        def _raise_open(*args: object, **kwargs: object) -> None:
+            raise PermissionError("cannot write")
+
+        monkeypatch.setattr(Path, "open", _raise_open)
+
+        with pytest.raises(SystemExit) as exc:
+            write_json_file(target, {"k": "v"})
+
+        assert exc.value.code == EXIT_PERMISSION_ERROR
+        assert any("Permission denied writing" in message for _, message in mock_logger)
+
+    def test_write_json_oserror(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_logger: list[tuple[str, str]]
+    ) -> None:
+        """Unexpected OS errors on write should map to file error exit code."""
+        target = tmp_path / "output.json"
+
+        def _raise_oserror(*args: object, **kwargs: object) -> None:
+            raise OSError("disk failure")
+
+        monkeypatch.setattr(Path, "open", _raise_oserror)
+
+        with pytest.raises(SystemExit) as exc:
+            write_json_file(target, {"k": "v"})
+
+        assert exc.value.code == EXIT_FILE_ERROR
+        assert any("Failed to write" in message for _, message in mock_logger)

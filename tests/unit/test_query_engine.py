@@ -118,6 +118,23 @@ class TestParallelExecution:
 
         assert sorted(callbacks) == ["office1:1", "office2:1", "office3:1"]
 
+    def test_execute_injects_office_identifier_into_rows(self) -> None:
+        """Merged rows should reflect the office identifiers provided to the engine."""
+        engine = QueryEngine(max_concurrent=1)
+
+        with patch("opendental_query.core.query_engine.APIClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.query.return_value = [{"value": "123"}]
+            mock_client_class.return_value = mock_client
+
+            result = engine.execute(
+                sql="SELECT 1",
+                office_credentials={"Renamed Office": ("dev", "cust")},
+                api_base_url="https://api.example.com",
+            )
+
+        assert result.all_rows == [{"Office": "Renamed Office", "value": "123"}]
+
 
 class TestTimeoutHandling:
     """Test per-office timeout behavior."""

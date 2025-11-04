@@ -39,6 +39,48 @@ def test_record_query_result_creates_tables(tmp_config_dir: Path) -> None:
     assert stored_metadata["note"] == "initial"
 
 
+def test_record_query_result_uses_saved_query_name_for_table(tmp_config_dir: Path) -> None:
+    db = QueryHistoryDatabase(tmp_config_dir)
+    sql = "SELECT Office, Value FROM sample"
+    columns = ["Office", "Value"]
+    rows = _create_sample_rows()
+
+    db.record_query_result(
+        sql,
+        columns,
+        rows,
+        source="query-run",
+        metadata={"saved_query": "Monthly Summary"},
+    )
+
+    queries = db.list_queries()
+    assert queries[0]["sanitized_table"] == "monthly_summary"
+
+    columns_loaded, rows_loaded = db._load_query_rows(sql)
+    assert columns_loaded == columns
+    assert [tuple(row) for row in rows_loaded]  # data persisted
+
+
+def test_saved_query_table_name_collision_gets_suffix(tmp_config_dir: Path) -> None:
+    db = QueryHistoryDatabase(tmp_config_dir)
+    sql = "SELECT 1"
+    columns = ["Value"]
+    rows = [{"Value": "x"}]
+
+    db.record_query_result(
+        sql,
+        columns,
+        rows,
+        source="query-run",
+        metadata={"saved_query": "queries"},
+    )
+
+    queries = db.list_queries()
+    sanitized = queries[0]["sanitized_table"]
+    assert sanitized != "queries"
+    assert sanitized.startswith("queries_")
+
+
 def test_record_query_result_appends_for_same_schema(tmp_config_dir: Path) -> None:
     db = QueryHistoryDatabase(tmp_config_dir)
     sql = "SELECT Office, Value FROM sample"
@@ -109,4 +151,3 @@ def test_import_excel(tmp_config_dir: Path, tmp_path: Path) -> None:
     metadata = json.loads(runs[0]["metadata"])
     assert metadata["source"] == "excel"
     assert metadata["sheet_name"] == "Data"
-

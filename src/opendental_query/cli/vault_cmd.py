@@ -8,6 +8,7 @@ from rich.table import Table
 
 from opendental_query.constants import DEFAULT_VAULT_FILE
 from opendental_query.core.vault import VaultManager
+from opendental_query.utils.saved_queries import SavedQueryLibrary
 
 console = Console()
 
@@ -22,6 +23,9 @@ class AliasedGroup(click.Group):
             "add": "add-office",
             "remove": "remove-office",
             "rm": "remove-office",
+            "rename": "rename-office",
+            "edit": "rename-office",
+            "mv": "rename-office",
             "list": "list-offices",
             "ls": "list-offices",
             "update-key": "update-developer-key",
@@ -222,6 +226,69 @@ def vault_remove_office(ctx: click.Context, office_id: str, vault_file: Path | N
         manager.remove_office(office_id)
 
         console.print(f"[green]✓[/green] Removed credentials for office: {office_id}")
+
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise click.Abort()
+
+
+@vault.command("rename-office", short_help="Rename an existing office ID")
+@click.argument("current_office_id")
+@click.argument("new_office_id")
+@click.option(
+    "--vault-file",
+    type=click.Path(path_type=Path),
+    help="Vault file path",
+)
+@click.pass_context
+def vault_rename_office(
+    ctx: click.Context,
+    current_office_id: str,
+    new_office_id: str,
+    vault_file: Path | None,
+) -> None:
+    """Rename an office credential while preserving its CustomerKey."""
+
+    config_dir = ctx.obj["config_dir"]
+
+    if vault_file is None:
+        vault_file = config_dir / DEFAULT_VAULT_FILE
+
+    if not vault_file.exists():
+        console.print(f"[red]Error: Vault not found at {vault_file}[/red]")
+        raise click.Abort()
+
+    if current_office_id == new_office_id:
+        console.print("[red]Error: New office ID must be different from the current ID[/red]")
+        raise click.Abort()
+
+    password = click.prompt("Master password", hide_input=True)
+
+    try:
+        manager = VaultManager(vault_file)
+        if not manager.unlock(password):
+            console.print("[red]Error: Incorrect password[/red]")
+            raise click.Abort()
+
+        manager.rename_office(current_office_id, new_office_id)
+
+        updated_queries = 0
+        try:
+            library = SavedQueryLibrary(config_dir)
+            updated_queries = library.rename_office(current_office_id, new_office_id)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            console.print(
+                f"[yellow]Warning: Unable to update saved queries for renamed office: {exc}[/yellow]"
+            )
+
+        console.print(
+            f"[green]✓[/green] Renamed office '{current_office_id}' to '{new_office_id}'"
+        )
+        if updated_queries:
+            noun = "query" if updated_queries == 1 else "queries"
+            console.print(
+                f"[green]✓[/green] Updated default offices in {updated_queries} saved {noun}"
+            )
 
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")

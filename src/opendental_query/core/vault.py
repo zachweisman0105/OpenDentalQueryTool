@@ -12,15 +12,13 @@ API credentials with features:
 
 import json
 import os
+import re
 import stat
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from opendental_query.constants import (
-    MAX_PASSWORD_ATTEMPTS,
-    PASSWORD_MIN_LENGTH,
-)
+from opendental_query.constants import MAX_PASSWORD_ATTEMPTS, OFFICE_ID_PATTERN, PASSWORD_MIN_LENGTH
 from opendental_query.core.vault_encryption import VaultEncryption
 from opendental_query.models.vault import VaultCredentials, VaultData
 from opendental_query.utils.app_logger import get_logger
@@ -392,6 +390,49 @@ class VaultManager:
             logger.info(f"Removed office credential: {office_id}")
             self._audit_logger.log_config_change(
                 action="remove_office", details={"office_id": office_id}
+            )
+
+    def rename_office(self, current_office_id: str, new_office_id: str) -> None:
+        """Rename an existing office identifier in the vault.
+
+        Args:
+            current_office_id: Existing office identifier
+            new_office_id: Desired replacement identifier
+
+        Raises:
+            ValueError: If the vault is locked, the source office is missing,
+                the new identifier is invalid, or the destination already exists.
+        """
+        self._require_unlocked()
+        self._reset_auto_lock_timer()
+
+        normalized_new_id = new_office_id.strip()
+        if not normalized_new_id:
+            raise ValueError("New office ID cannot be empty")
+        if normalized_new_id == current_office_id:
+            raise ValueError("New office ID must be different from the current ID")
+        if not re.match(OFFICE_ID_PATTERN, normalized_new_id):
+            raise ValueError(
+                "New office ID must contain only alphanumeric characters, hyphens, "
+                "and underscores (max length 50)."
+            )
+
+        with self._lock:
+            offices = self._vault_data["offices"]
+            if current_office_id not in offices:
+                raise ValueError(f"Office not found: {current_office_id}")
+            if normalized_new_id in offices:
+                raise ValueError(f"Office already exists: {normalized_new_id}")
+
+            entry = offices.pop(current_office_id)
+            offices[normalized_new_id] = entry
+
+            self._save_vault()
+
+            logger.info("Renamed office credential: %s -> %s", current_office_id, normalized_new_id)
+            self._audit_logger.log_config_change(
+                action="rename_office",
+                details={"old_office_id": current_office_id, "new_office_id": normalized_new_id},
             )
 
     def update_developer_key(self, developer_key: str) -> None:

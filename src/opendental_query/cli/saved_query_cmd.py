@@ -228,6 +228,75 @@ def show_saved_query(ctx: click.Context, name: str) -> None:
     console.print(query.sql, highlight=False)
 
 
+@saved_query_group.command("edit")
+@click.argument("name", required=False)
+@click.pass_context
+def edit_saved_query(ctx: click.Context, name: str | None) -> None:
+    """Open the saved query SQL in an editor for updates."""
+    library = _get_library(ctx)
+
+    if not name:
+        queries = library.list_queries()
+        if not queries:
+            console.print("[yellow]No saved queries available to edit.[/yellow]")
+            return
+        console.print("[cyan]Saved queries:[/cyan]")
+        for query in queries:
+            console.print(f"  - {query.name}")
+        entered = click.prompt("Enter the name of the saved query to edit", default="").strip()
+        if not entered:
+            console.print("[yellow]Edit cancelled.[/yellow]")
+            return
+        name = entered
+
+    try:
+        query = library.get_query(name)
+    except KeyError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+
+    console.print(f"[cyan]Current SQL for '{query.name}':[/cyan]")
+    console.print(query.sql, highlight=False)
+    console.print("[cyan]Enter updated SQL (blank line to finish, press Enter immediately to keep current SQL):[/cyan]")
+
+    new_lines: list[str] = []
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            line = ""
+        if line == "":
+            break
+        new_lines.append(line)
+
+    if not new_lines:
+        console.print("[yellow]SQL unchanged. Query not updated.[/yellow]")
+        return
+
+    updated_sql = "\n".join(new_lines).strip()
+    if not updated_sql:
+        console.print("[red]No SQL provided. Query not updated.[/red]")
+        return
+
+    if updated_sql == query.sql.strip():
+        console.print("[yellow]SQL unchanged. Query not updated.[/yellow]")
+        return
+
+    try:
+        library.save_query(
+            query.name,
+            updated_sql,
+            description=query.description,
+            default_offices=query.default_offices,
+            overwrite=True,
+        )
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+
+    console.print(f"[green]Updated query '{query.name}'.[/green]")
+
+
 @saved_query_group.command("delete")
 @click.argument("name")
 @click.option("--force", "-f", is_flag=True, help="Do not prompt for confirmation.")
@@ -379,6 +448,13 @@ def shortcut_save_query() -> None:
         cli.main(args=["saved-query", "list", "--show-sql"])
     elif args and args[0].lower() == "delete":
         cli.main(args=["saved-query", "deleteinteractive"])
+    elif args and args[0].lower() == "edit":
+        remaining = args[1:]
+        if remaining:
+            query_name = " ".join(remaining)
+            cli.main(args=["saved-query", "edit", query_name])
+        else:
+            cli.main(args=["saved-query", "edit"])
     elif args:
         query_name = " ".join(args)
         cli.main(

@@ -4,6 +4,7 @@ Unit tests for retry_with_backoff decorator.
 Tests exponential backoff with jitter, retry conditions, and max retries.
 """
 
+import random
 import time
 
 import httpx
@@ -12,89 +13,103 @@ import pytest
 from opendental_query.core.retry import retry_with_backoff
 
 
+@pytest.fixture(autouse=True)
+def _disable_real_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid actual sleeping to keep tests fast and deterministic."""
+    monkeypatch.setattr(time, "sleep", lambda *_args, **_kwargs: None)
+
 class TestExponentialBackoff:
     """Test exponential backoff timing with jitter."""
 
-    def test_retries_with_exponential_backoff(self) -> None:
+    def test_retries_with_exponential_backoff(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should retry with exponentially increasing delays."""
-        attempt_times: list[float] = []
+        recorded: list[tuple[float, float]] = []
+
+        def _fake_sleep(delay: float, jitter: float) -> None:
+            jitter_amount = delay * jitter
+            actual_delay = delay + random.uniform(-jitter_amount, jitter_amount)
+            recorded.append((delay, actual_delay))
+
+        monkeypatch.setattr("opendental_query.core.retry._sleep_with_jitter", _fake_sleep)
+
+        attempts = 0
 
         @retry_with_backoff(max_retries=3, initial_delay=0.1)
         def failing_function() -> None:
-            attempt_times.append(time.time())
+            nonlocal attempts
+            attempts += 1
             raise ConnectionError("Network error")
 
         with pytest.raises(ConnectionError):
             failing_function()
 
-        # Should have made 4 attempts total (initial + 3 retries)
-        assert len(attempt_times) == 4
+        assert attempts == 4
+        base_delays = [delay for delay, _ in recorded]
+        assert base_delays == [pytest.approx(0.1), pytest.approx(0.2), pytest.approx(0.4)]
+        for base, actual in recorded:
+            lower = base * 0.75
+            upper = base * 1.25
+            assert lower <= actual <= upper
 
-        # Check approximate delays (0.1s, 0.2s, 0.4s with ±25% jitter)
-        delays = [attempt_times[i + 1] - attempt_times[i] for i in range(len(attempt_times) - 1)]
-        assert delays[0] == pytest.approx(0.1, rel=0.4)
-        assert delays[1] == pytest.approx(0.2, rel=0.4)
-        assert delays[2] == pytest.approx(0.4, rel=0.4)
-
-    def test_jitter_adds_randomness(self) -> None:
+    def test_jitter_adds_randomness(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should add ±25% jitter to delay."""
-        delays_run1: list[float] = []
-        delays_run2: list[float] = []
+        jitter_values = iter([1.0, -1.0, 0.5, -0.5])
 
-        @retry_with_backoff(max_retries=2, initial_delay=1.0)
-        def failing_function() -> None:
+        def _fake_uniform(a: float, b: float) -> float:
+            factor = next(jitter_values)
+            return factor * abs(b)
+
+        monkeypatch.setattr("opendental_query.core.retry.random.uniform", _fake_uniform)
+
+        recorded: list[float] = []
+
+        def _capture_sleep(duration: float) -> None:
+            recorded.append(duration)
+
+        monkeypatch.setattr(time, "sleep", _capture_sleep)
+
+        @retry_with_backoff(max_retries=2, initial_delay=0.1)
+        def always_timeout() -> None:
             raise TimeoutError("Timeout")
-
-        # Run 1
-        times1: list[float] = []
-
-        def track_times1() -> None:
-            times1.append(time.time())
-            raise TimeoutError("Timeout")
-
-        decorated1 = retry_with_backoff(max_retries=2, initial_delay=0.1)(track_times1)
 
         with pytest.raises(TimeoutError):
-            decorated1()
-
-        delays_run1 = [times1[i + 1] - times1[i] for i in range(len(times1) - 1)]
-
-        # Run 2
-        times2: list[float] = []
-
-        def track_times2() -> None:
-            times2.append(time.time())
-            raise TimeoutError("Timeout")
-
-        decorated2 = retry_with_backoff(max_retries=2, initial_delay=0.1)(track_times2)
+            always_timeout()
 
         with pytest.raises(TimeoutError):
-            decorated2()
+            always_timeout()
 
-        delays_run2 = [times2[i + 1] - times2[i] for i in range(len(times2) - 1)]
+        expected = [0.125, 0.15, 0.1125, 0.175]
+        assert len(recorded) == len(expected)
+        for actual, expected_value in zip(recorded, expected, strict=True):
+            assert actual == pytest.approx(expected_value, rel=1e-6)
+        first_run = recorded[:2]
+        second_run = recorded[2:]
+        assert first_run != second_run
 
-        # Delays should differ due to jitter (very unlikely to be identical)
-        # Check at least one delay differs by more than 1ms
-        assert any(abs(d1 - d2) > 0.001 for d1, d2 in zip(delays_run1, delays_run2))
-
-    def test_max_delay_cap(self) -> None:
+    def test_max_delay_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should cap delay at max_delay value."""
-        attempt_times: list[float] = []
+        recorded: list[float] = []
+
+        def _fake_sleep(delay: float, jitter: float) -> None:
+            jitter_amount = delay * jitter
+            actual_delay = delay + random.uniform(-jitter_amount, jitter_amount)
+            recorded.append(actual_delay)
+
+        monkeypatch.setattr("opendental_query.core.retry._sleep_with_jitter", _fake_sleep)
+
+        attempts = 0
 
         @retry_with_backoff(max_retries=10, initial_delay=1.0, max_delay=2.0)
         def failing_function() -> None:
-            attempt_times.append(time.time())
-            if len(attempt_times) < 5:
+            nonlocal attempts
+            attempts += 1
+            if attempts < 5:
                 raise ConnectionError("Network error")
 
         failing_function()  # Should succeed on 5th attempt
 
-        # Check delays are capped at ~2.0s (with jitter)
-        delays = [attempt_times[i + 1] - attempt_times[i] for i in range(len(attempt_times) - 1)]
-
-        # Later delays should all be ~2.0s ±25% (not exponentially growing)
-        if len(delays) >= 3:
-            assert delays[2] <= 2.5  # Max 2.0s + 25% = 2.5s
+        assert attempts == 5
+        assert recorded[-1] <= 2.5  # 2.0s + 25% jitter cap
 
 
 class TestRetryConditions:

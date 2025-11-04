@@ -11,6 +11,7 @@ Provides interactive query interface with:
 """
 
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -165,6 +166,70 @@ class LiveRowTracker:
             table.add_row(office_id, f"{total:,}", delta_text, style=style)
 
         return table
+
+
+def _load_and_update_proc_code_template(
+    procedure_code: str,
+    template_path: Path | None = None,
+) -> tuple[str, Path, str]:
+    """
+    Prepare SQL from the template using the requested procedure code.
+
+    Returns the executable SQL (comments stripped), the path used, and the
+    procedure code already present in the template file.
+    """
+    normalized = procedure_code.strip().upper()
+    if not normalized:
+        raise click.ClickException("Procedure code cannot be empty.")
+    if not re.fullmatch(r"[A-Z0-9]+", normalized):
+        raise click.ClickException("Procedure code must contain only letters and numbers.")
+
+    if template_path is None:
+        cli_dir = Path(__file__).resolve().parent
+        src_dir = cli_dir.parent.parent
+        project_root = src_dir.parent
+        candidate_paths = [
+            project_root / "QueryProcCode SQL.txt",
+            src_dir / "QueryProcCode SQL.txt",
+        ]
+        for candidate in candidate_paths:
+            if candidate.exists():
+                template_path = candidate
+                break
+        if template_path is None:
+            template_path = candidate_paths[0]
+
+    path = template_path
+
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise click.ClickException(f"Template SQL file not found at: {path}") from exc
+
+    match = re.search(r"pc\.ProcCode\s*=\s*'([^']+)'", content, flags=re.IGNORECASE)
+    if not match:
+        raise click.ClickException("Could not locate pc.ProcCode assignment in template SQL.")
+
+    previous_code = match.group(1)
+
+    updated_content = re.sub(
+        r"(pc\.ProcCode\s*=\s*')([^']+)(')",
+        rf"\1{normalized}\3",
+        content,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+
+    query_lines = [
+        line
+        for line in updated_content.splitlines()
+        if line.strip() and not line.strip().startswith("--")
+    ]
+    if not query_lines:
+        raise click.ClickException("Template SQL does not contain executable statements.")
+
+    executable_sql = "\n".join(query_lines)
+    return executable_sql, path, previous_code
 
 
 def _execute_single_query(
@@ -323,6 +388,70 @@ def _execute_single_query(
     if result.successful_count > 0:
         return 1
     return 2
+
+
+@click.command(name="query-proc-code")
+@click.option(
+    "--code",
+    "-p",
+    help="Procedure code to substitute into the QueryProcCode SQL template (e.g., D0120).",
+)
+@click.option(
+    "--offices",
+    "-o",
+    help="Comma-separated office IDs, or 'ALL' (interactive prompt if not provided)",
+)
+@click.option(
+    "--timeout",
+    "-t",
+    type=int,
+    default=300,
+    help="Timeout per office in seconds (default 300 = 5 minutes)",
+)
+@click.option(
+    "--max-concurrent",
+    "-c",
+    type=int,
+    default=10,
+    help="Maximum concurrent office queries (default 10)",
+)
+@click.option(
+    "--export",
+    "export_results",
+    is_flag=True,
+    help="Export results to an Excel workbook after execution",
+)
+@click.pass_context
+def query_proc_code_command(
+    ctx: click.Context,
+    code: str | None,
+    offices: str | None,
+    timeout: int,
+    max_concurrent: int,
+    export_results: bool,
+) -> None:
+    """Execute the procedure-code template query after substituting the requested code."""
+    console = Console()
+    if not code:
+        code = click.prompt("Enter procedure code (e.g., D0120)", type=str)
+
+    try:
+        executable_sql, template_path, previous_code = _load_and_update_proc_code_template(code)
+    except click.ClickException:
+        raise
+
+    normalized = code.strip().upper()
+    console.print(f"[cyan]Running query for procedure code {normalized}[/cyan]")
+
+    ctx.invoke(
+        query_command,
+        saved_query=None,
+        sql=executable_sql,
+        offices=offices,
+        timeout=timeout,
+        max_concurrent=max_concurrent,
+        export_results=export_results,
+    )
 
 
 @click.command(name="query")

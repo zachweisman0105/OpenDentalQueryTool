@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import getpass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import click
 
@@ -237,13 +237,23 @@ def list_tables_command(ctx: click.Context, show_sql: bool) -> None:
 
     library = SavedQueryLibrary(config_dir)
     saved_map = {item.sql: item for item in library.list_queries()}
+    alias_map = db.saved_query_aliases()
 
     click.echo("History tables:")
     for idx, entry in enumerate(entries, start=1):
         saved = saved_map.get(entry["query_text"])
-        label = saved.name if saved else entry["sanitized_table"]
+        alias_name = alias_map.get(entry["query_id"])
+        entry["saved_query_alias"] = alias_name
+        if saved is not None:
+            label = saved.name
+            suffix = ""
+        elif alias_name:
+            label = alias_name
+            suffix = ""
+        else:
+            label = entry["sanitized_table"]
+            suffix = " (unlinked)"
         created_at = entry.get("created_at", "")
-        suffix = " (unlinked)" if saved is None else ""
         line = f"{idx}. {label}{suffix}"
         if created_at:
             line += f" - created {created_at}"
@@ -275,13 +285,13 @@ def export_history(
     entry, matched_saved = _select_history_entry(
         config_dir,
         library,
-        "Enter the saved query name (or raw SQL text) to export",
+        "Enter the table name to export",
         preset_selection=preset,
         show_listing=saved_query is None,
     )
-    display_name = matched_saved.name if matched_saved else entry["query_text"]
-
     db = QueryHistoryDatabase(config_dir)
+    alias_fallback = db.saved_query_aliases().get(entry.get("query_id", ""))
+    display_name = _entry_display_name(entry, matched_saved, alias_fallback)
 
     try:
         export_path, row_count = db.export_query_to_excel(entry["query_text"], output)
@@ -309,7 +319,9 @@ def import_table_command(ctx: click.Context) -> None:
         library,
         "Select table to import into (number or name)",
     )
-    display_name = matched_saved.name if matched_saved else entry["query_text"]
+    db = QueryHistoryDatabase(config_dir)
+    alias_fallback = db.saved_query_aliases().get(entry.get("query_id", ""))
+    display_name = _entry_display_name(entry, matched_saved, alias_fallback)
 
     file_input = click.prompt("Enter path to Excel file (.xlsx, .xlsm, .xltx, .xltm)").strip()
     cleaned_path = file_input.strip("\"'")
@@ -326,7 +338,6 @@ def import_table_command(ctx: click.Context) -> None:
         show_default=False,
     ).strip()
 
-    db = QueryHistoryDatabase(config_dir)
     if replace_existing:
         db.delete_query_history(entry["query_text"])
 
@@ -370,14 +381,15 @@ def delete_history(
         show_listing=saved_query is None,
     )
 
-    display_name = matched_saved.name if matched_saved else entry["query_text"]
+    db = QueryHistoryDatabase(config_dir)
+    alias_fallback = db.saved_query_aliases().get(entry.get("query_id", ""))
+    display_name = _entry_display_name(entry, matched_saved, alias_fallback)
 
     if not force:
         if not click.confirm(f"Delete all persisted history for '{display_name}'?", default=False):
             click.echo("Deletion cancelled.")
             return
 
-    db = QueryHistoryDatabase(config_dir)
     if not db.delete_query_history(entry["query_text"]):
         raise click.ClickException("History table not found or could not be deleted.")
 
@@ -472,6 +484,7 @@ def _select_history_entry(
 
     saved_items = library.list_queries()
     sql_to_saved = {item.sql: item for item in saved_items}
+    alias_map = history_db.saved_query_aliases()
 
     options: list[dict[str, Any]] = []
     should_show = show_listing if show_listing is not None else preset_selection is None
@@ -481,10 +494,22 @@ def _select_history_entry(
 
     for idx, entry in enumerate(stored_entries, start=1):
         matched = sql_to_saved.get(entry["query_text"])
-        label = matched.name if matched else entry["query_text"]
+        alias_name = alias_map.get(entry["query_id"])
+        sanitized = entry["sanitized_table"]
+        aliases = {sanitized.lower(), entry["query_text"].lower()}
+        if matched:
+            label = matched.name
+            display_label = label
+        elif alias_name:
+            label = alias_name
+            display_label = label
+        else:
+            label = sanitized
+            display_label = f"{sanitized} (unlinked)"
+        aliases.add(label.lower())
         if should_show:
-            click.echo(f"  {idx}. {label}")
-        options.append({"entry": entry, "saved": matched, "label": label})
+            click.echo(f"  {idx}. {display_label}")
+        options.append({"entry": entry, "saved": matched, "label": label, "aliases": aliases})
 
     selection_input = (
         preset_selection.strip() if preset_selection else click.prompt(prompt_message).strip()
@@ -509,7 +534,7 @@ def _select_history_entry(
 
     if chosen is None:
         for option in options:
-            if option["label"].lower() == selection_lower:
+            if selection_lower in option["aliases"]:
                 chosen = option
                 break
 
@@ -517,6 +542,25 @@ def _select_history_entry(
         raise click.ClickException("Selection did not match any stored history tables.")
 
     return chosen["entry"], chosen["saved"]
+
+
+def _entry_display_name(
+    entry: Mapping[str, Any],
+    matched_saved: SavedQuery | None,
+    alias_fallback: str | None = None,
+) -> str:
+    """Derive a user-friendly name for a stored history entry."""
+    if matched_saved is not None:
+        return matched_saved.name
+    alias = entry.get("saved_query_alias")
+    if isinstance(alias, str) and alias:
+        return alias
+    if isinstance(alias_fallback, str) and alias_fallback:
+        return alias_fallback
+    sanitized = entry.get("sanitized_table")
+    if isinstance(sanitized, str) and sanitized:
+        return sanitized
+    return str(entry.get("query_text", ""))
 
 
 def _ensure_vault_unlocked(ctx: click.Context, vault_manager: VaultManager) -> None:

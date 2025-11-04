@@ -240,6 +240,68 @@ def test_table_list_shortcut_invokes_cli(monkeypatch) -> None:
         table_list_shortcut()
     mock_cli.assert_called_once_with(obj={})
 
+
+def test_select_history_entry_uses_sanitized_table_for_unlinked_entries(
+    tmp_path: Path,
+) -> None:
+    db = QueryHistoryDatabase(tmp_path)
+    db.record_query_result(
+        "SELECT 42",
+        ["Value"],
+        [{"Value": "x"}],
+        source="test",
+        metadata=None,
+    )
+    sanitized_table = db.list_queries()[0]["sanitized_table"]
+    runner = CliRunner()
+    result = runner.invoke(
+        history_group,
+        ["delete", "--force"],
+        obj={"config_dir": tmp_path},
+        input="1\n",
+    )
+    assert result.exit_code == 0
+    assert f"  1. {sanitized_table} (unlinked)" in result.output
+
+
+def test_history_listing_uses_saved_query_alias_when_library_missing(tmp_path: Path) -> None:
+    db = QueryHistoryDatabase(tmp_path)
+    db.record_query_result(
+        "SELECT 1",
+        ["Value"],
+        [{"Value": "1"}],
+        source="test",
+        metadata={"saved_query": "monthly"},
+    )
+    runner = CliRunner()
+    result = runner.invoke(history_group, ["list-tables"], obj={"config_dir": tmp_path})
+    assert result.exit_code == 0
+    assert "1. monthly" in result.output
+
+
+def test_export_history_prompt_and_alias_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SPEC_KIT_ALLOW_UNSAFE_EXPORTS", "1")
+    db = QueryHistoryDatabase(tmp_path)
+    db.record_query_result(
+        "SELECT 1",
+        ["Value"],
+        [{"Value": "1"}],
+        source="test",
+        metadata={"saved_query": "monthly"},
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        history_group,
+        ["export", "--output", str(tmp_path / "exports")],
+        obj={"config_dir": tmp_path},
+        input="monthly\n",
+    )
+    assert result.exit_code == 0
+    assert "Enter the table name to export" in result.output
+    assert "Exported 1 row(s) for 'monthly'" in result.output
+
 def test_export_history_sorts_by_run_then_office(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

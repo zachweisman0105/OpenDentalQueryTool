@@ -1,0 +1,10 @@
+-- Replace 'D1080' with your target procedure code
+SELECT
+  SUM(pl.ProcFee) AS MonthTotalValue,
+  COUNT(*)        AS MonthTotalCodes
+FROM procedurelog pl
+JOIN procedurecode pc ON pc.CodeNum = pl.CodeNum
+WHERE pl.ProcStatus = 2
+  AND pc.ProcCode = 'D1080'
+  AND pl.ProcDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+  AND pl.ProcDate <= CURDATE();

@@ -26,6 +26,8 @@ class AliasedGroup(click.Group):
         # Define aliases mapping for top-level commands
         aliases = {
             "q": "query",
+            "QueryProcCode": "query-proc-code",
+            "queryproccode": "query-proc-code",
             "update": "check-update",
             "v": "vault",
             "c": "config",
@@ -98,7 +100,7 @@ def cli(ctx: click.Context, config_dir: Path, verbose: bool) -> None:
 from opendental_query.cli.config_cmd import config_group
 from opendental_query.cli.history_cmd import history_group
 from opendental_query.cli.persist_cmd import persist_command
-from opendental_query.cli.query_cmd import query_command
+from opendental_query.cli.query_cmd import query_command, query_proc_code_command
 from opendental_query.cli.saved_query_cmd import saved_query_group
 from opendental_query.cli.update_cmd import check_update
 from opendental_query.cli.vault_cmd import vault
@@ -106,6 +108,7 @@ from opendental_query.cli.vault_cmd import vault
 # Register command groups
 cli.add_command(vault)
 cli.add_command(query_command)
+cli.add_command(query_proc_code_command)
 cli.add_command(config_group)
 cli.add_command(check_update)
 cli.add_command(saved_query_group)

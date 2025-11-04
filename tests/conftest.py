@@ -1,12 +1,25 @@
 """Pytest configuration and shared fixtures."""
 
 import json
+import os
+import random
 from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
 from opendental_query.models.config import AppConfig, OfficeConfig
+
+os.environ.setdefault("PYTHONHASHSEED", "0")
+random.seed(0)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _deterministic_random() -> Generator[None, None, None]:
+    """Force deterministic random state across the entire test session."""
+    random.seed(0)
+    yield
+    random.seed(0)
 
 
 @pytest.fixture

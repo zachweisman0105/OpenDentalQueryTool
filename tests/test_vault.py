@@ -368,6 +368,38 @@ class TestVaultOperations:
         offices = manager.list_offices()
         assert "office1" not in offices
 
+    def test_rename_office_preserves_credentials(self, tmp_config_dir: Path) -> None:
+        """Renaming an office should move the credential and keep the customer key."""
+        vault_path = tmp_config_dir / "test.vault"
+        password = "SecurePassword123!"
+        developer_key = "dev_key_abc123"
+
+        manager = VaultManager(vault_path)
+        manager.init(password, developer_key)
+        manager.add_office("office1", "customer_key_xyz789")
+
+        manager.rename_office("office1", "main-office")
+
+        offices = manager.list_offices()
+        assert "office1" not in offices
+        assert "main-office" in offices
+        credential = manager.get_office_credential("main-office")
+        assert credential.password == "customer_key_xyz789"
+
+    def test_rename_office_rejects_duplicates(self, tmp_config_dir: Path) -> None:
+        """Renaming to an existing office ID should raise an error."""
+        vault_path = tmp_config_dir / "test.vault"
+        password = "SecurePassword123!"
+        developer_key = "dev_key_abc123"
+
+        manager = VaultManager(vault_path)
+        manager.init(password, developer_key)
+        manager.add_office("one", "key1")
+        manager.add_office("two", "key2")
+
+        with pytest.raises(ValueError, match="already exists"):
+            manager.rename_office("one", "two")
+
     def test_update_developer_key(self, tmp_config_dir: Path) -> None:
         """Test updating developer key in vault."""
         vault_path = tmp_config_dir / "test.vault"

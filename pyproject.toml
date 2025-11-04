@@ -52,10 +52,11 @@ packaging = [
 ]
 
 [project.scripts]
-opendental-query = "opendental_query.cli.main:cli"
-# Main command shortcuts
-Query = "opendental_query.cli.query_cmd:query_command"
-Vault = "opendental_query.cli.shortcuts:vault_shortcut"
+  opendental-query = "opendental_query.cli.main:cli"
+  # Main command shortcuts
+  Query = "opendental_query.cli.query_cmd:query_command"
+  QueryProcCode = "opendental_query.cli.query_cmd:query_proc_code_command"
+  Vault = "opendental_query.cli.shortcuts:vault_shortcut"
 Config = "opendental_query.cli.shortcuts:config_shortcut"
 Update = "opendental_query.cli.shortcuts:update_shortcut"
 QuerySave = "opendental_query.cli.saved_query_cmd:shortcut_save_query"
@@ -156,9 +157,10 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--cov=opendental_query",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-report=html",
-    "--cov-report=xml",
+"--cov-report=term-missing:skip-covered",
+"--cov-report=html",
+"--cov-report=xml",
+"--cov-fail-under=72",
 ]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

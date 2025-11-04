@@ -16,7 +16,7 @@ from openpyxl import load_workbook
 
 from opendental_query.constants import DEFAULT_CONFIG_DIR
 from opendental_query.renderers.excel_exporter import ExcelExporter
-from opendental_query.utils.persist_db import _EncryptedDatabaseContext
+from opendental_query.utils.persist_db import PersistDatabase, _EncryptedDatabaseContext
 
 SUPPORTED_EXCEL_FORMATS = {".xlsx", ".xlsm", ".xltx", ".xltm"}
 CSV_ENCODING = "utf-8-sig"
@@ -52,6 +52,14 @@ class QueryHistoryDatabase:
         sanitized_columns = self._sanitize_columns(columns)
         run_timestamp = datetime.now(timezone.utc).isoformat()
 
+        saved_query_name: str | None = None
+        if metadata is not None:
+            saved_name = metadata.get("saved_query")
+            if isinstance(saved_name, str):
+                cleaned_name = saved_name.strip()
+                if cleaned_name:
+                    saved_query_name = cleaned_name
+
         with _EncryptedDatabaseContext(self._db_path, self._fernet) as conn:
             cursor = conn.cursor()
             self._ensure_schema(cursor)
@@ -67,6 +75,7 @@ class QueryHistoryDatabase:
                     columns,
                     sanitized_columns,
                     run_timestamp,
+                    preferred_table_name=saved_query_name,
                 )
             else:
                 table_name = query_record["sanitized_table"]
@@ -121,6 +130,27 @@ class QueryHistoryDatabase:
             )
             columns = [description[0] for description in cursor.description]
             return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+
+    def saved_query_aliases(self) -> dict[str, str]:
+        """Return mapping of query IDs to saved query names derived from run metadata."""
+        aliases: dict[str, str] = {}
+        with _EncryptedDatabaseContext(self._db_path, self._fernet) as conn:
+            cursor = conn.cursor()
+            self._ensure_schema(cursor)
+            cursor.execute(
+                "SELECT query_id, metadata FROM query_runs WHERE metadata IS NOT NULL ORDER BY run_at"
+            )
+            for query_id, metadata_raw in cursor.fetchall():
+                if not metadata_raw:
+                    continue
+                try:
+                    metadata = json.loads(metadata_raw)
+                except json.JSONDecodeError:
+                    continue
+                saved_name = metadata.get("saved_query")
+                if isinstance(saved_name, str) and saved_name.strip():
+                    aliases[query_id] = saved_name.strip()
+        return aliases
 
     def list_runs(self, query_text: str | None = None) -> list[dict[str, Any]]:
         """Return run metadata for all queries or a specific query."""
@@ -316,8 +346,14 @@ class QueryHistoryDatabase:
         columns: Sequence[str],
         sanitized_columns: Sequence[str],
         created_at: str,
+        *,
+        preferred_table_name: str | None = None,
     ) -> str:
-        table_name = f"q_{query_id[:16]}"
+        table_name = self._generate_table_identifier(
+            cursor,
+            query_id,
+            preferred_table_name,
+        )
         column_defs = ", ".join([f'"{col}" TEXT' for col in sanitized_columns])
         cursor.execute(f'CREATE TABLE "{table_name}" ({column_defs})')
         cursor.execute(
@@ -333,6 +369,41 @@ class QueryHistoryDatabase:
             ),
         )
         return table_name
+
+    def _generate_table_identifier(
+        self,
+        cursor: sqlite3.Cursor,
+        query_id: str,
+        preferred_table_name: str | None,
+    ) -> str:
+        if preferred_table_name:
+            sanitized = self._sanitize_identifier(preferred_table_name)
+            if sanitized:
+                return self._ensure_unique_table_name(cursor, sanitized)
+
+        default_candidate = f"q_{query_id[:16]}"
+        return self._ensure_unique_table_name(cursor, default_candidate)
+
+    @classmethod
+    def _ensure_unique_table_name(cls, cursor: sqlite3.Cursor, base_name: str) -> str:
+        candidate = base_name
+        suffix = 1
+        while cls._table_exists(cursor, candidate):
+            candidate = f"{base_name}_{suffix}"
+            suffix += 1
+        return candidate
+
+    @staticmethod
+    def _table_exists(cursor: sqlite3.Cursor, table_name: str) -> bool:
+        cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        )
+        return cursor.fetchone() is not None
+
+    @staticmethod
+    def _sanitize_identifier(name: str) -> str:
+        return PersistDatabase._sanitize_identifier(name)
 
     def _ensure_schema(self, cursor: sqlite3.Cursor) -> None:
         cursor.execute(
@@ -380,12 +451,10 @@ class QueryHistoryDatabase:
 
     @staticmethod
     def _sanitize_columns(columns: Sequence[str]) -> list[str]:
-        from opendental_query.utils.persist_db import PersistDatabase
-
         sanitized: list[str] = []
         seen: set[str] = set()
         for column in columns:
-            base = PersistDatabase._sanitize_identifier(column)
+            base = QueryHistoryDatabase._sanitize_identifier(column)
             candidate = base
             index = 1
             while candidate in seen:

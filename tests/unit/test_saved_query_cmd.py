@@ -185,6 +185,45 @@ class TestSavedQueryCLI:
         assert "one" not in list_result.output
         assert "two" not in list_result.output
 
+    def test_edit_saved_query_updates_sql(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        runner.invoke(
+            saved_query_group,
+            ["save", "--name", "editable", "--sql", "SELECT 1"],
+            obj={"config_dir": tmp_path},
+        )
+        result = runner.invoke(
+            saved_query_group,
+            ["edit", "editable"],
+            obj={"config_dir": tmp_path},
+            input="SELECT 2\n\n",
+        )
+        assert result.exit_code == 0
+        assert "Updated query 'editable'." in result.output
+
+        show_result = runner.invoke(
+            saved_query_group,
+            ["show", "editable"],
+            obj={"config_dir": tmp_path},
+        )
+        assert "SELECT 2" in show_result.output
+
+    def test_edit_saved_query_prompts_when_no_name(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        runner.invoke(
+            saved_query_group,
+            ["save", "--name", "prompted", "--sql", "SELECT 1"],
+            obj={"config_dir": tmp_path},
+        )
+        result = runner.invoke(
+            saved_query_group,
+            ["edit"],
+            obj={"config_dir": tmp_path},
+            input="prompted\nSELECT 3\n\n",
+        )
+        assert result.exit_code == 0
+        assert "Updated query 'prompted'." in result.output
+
 
 def test_shortcut_entry_invokes_cli(monkeypatch) -> None:
     monkeypatch.setattr(sys, "argv", ["QuerySave"])
@@ -205,6 +244,20 @@ def test_shortcut_entry_delete_invokes_cli(monkeypatch) -> None:
     with patch("opendental_query.cli.main.cli.main") as mock_main:
         shortcut_save_query()
         mock_main.assert_called_with(args=["saved-query", "deleteinteractive"])
+
+
+def test_shortcut_entry_edit_with_name_invokes_cli(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["QuerySave", "Edit", "My", "Query"])
+    with patch("opendental_query.cli.main.cli.main") as mock_main:
+        shortcut_save_query()
+        mock_main.assert_called_with(args=["saved-query", "edit", "My Query"])
+
+
+def test_shortcut_entry_edit_prompts_when_no_name(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["QuerySave", "Edit"])
+    with patch("opendental_query.cli.main.cli.main") as mock_main:
+        shortcut_save_query()
+        mock_main.assert_called_with(args=["saved-query", "edit"])
 
 
 def test_shortcut_entry_run_invokes_cli() -> None:

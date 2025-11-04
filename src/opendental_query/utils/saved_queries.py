@@ -116,6 +116,56 @@ class SavedQueryLibrary:
         self._write_data(data)
         return names
 
+    def rename_office(self, old_office_id: str, new_office_id: str) -> int:
+        """Rename a default office reference across all saved queries.
+
+        Returns:
+            Number of saved queries that were updated.
+        """
+        old_id = old_office_id.strip()
+        new_id = new_office_id.strip()
+        if not old_id or not new_id or old_id == new_id:
+            return 0
+
+        data = self._read_data()
+        queries = data.get("queries", {})
+        timestamp = datetime.now(UTC).isoformat()
+        updated = 0
+
+        for record in queries.values():
+            offices = record.get("default_offices") or []
+            if not offices:
+                continue
+
+            replaced = False
+            new_offices: list[str] = []
+            seen: set[str] = set()
+
+            for office in offices:
+                if office == "ALL":
+                    new_offices = ["ALL"]
+                    replaced = replaced or old_id == "ALL"
+                    break
+
+                candidate = new_id if office == old_id else office
+                if candidate == new_id and new_id in seen:
+                    replaced = replaced or office == old_id
+                    continue
+                seen.add(candidate)
+                if candidate != office:
+                    replaced = True
+                new_offices.append(candidate)
+
+            if replaced:
+                record["default_offices"] = new_offices
+                record["updated_at"] = timestamp
+                updated += 1
+
+        if updated:
+            self._write_data(data)
+
+        return updated
+
     def _read_data(self) -> dict[str, Any]:
         """Read and parse the saved queries file."""
         try:
