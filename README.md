@@ -36,79 +36,105 @@ A local, HIPAA-compliant CLI for executing SQL queries across multiple OpenDenta
      ```
 
 2. **Clone the repository and install dependencies**:
-   ```bash
-   git clone https://github.com/zachweisman0105/OpenDentalQueryTool.git
-   cd OpenDentalQueryTool
-   py -3.11 -m venv .venv
-   .venv\Scripts\activate
-   pip install -U pip
-   pip install -e .
-   ```
+    ```bash
+    git clone https://github.com/zachweisman0105/OpenDentalQueryTool.git
+    cd OpenDentalQueryTool
+    py -3.11 -m venv .venv
+    .venv\Scripts\activate
+    pip install -U pip
+    pip install -e .
+    ```
+   - On macOS/Linux use `python3.11 -m venv .venv` and `source .venv/bin/activate`.
 
-3. **Run the tool**:
-   ```bash
-   Query
-   VaultInit
-   VaultAdd
-   ConfigList
-   ```
+3. **Verify the CLI entry points (inside the activated virtual environment)**:
+    ```bash
+    opendental-query --help
+    Query --help
+    Vault --help
+    ```
+   These commands confirm the console scripts are installed. Continue with the Quick Start below to configure the vault, offices, and saved queries.
 
 ---
 
 ## Quick Start
 
-Ensure the virtual environment is activated.  
-> See [docs/COMMAND_ALIASES.md](docs/COMMAND_ALIASES.md) for shortcut commands  
-> (e.g. `VaultInit` = `opendental-query vault-init`)
+Activate the virtual environment you created during installation (`.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on macOS/Linux).
 
-### 1. Initialize Vault
+> See [docs/COMMAND_ALIASES.md](docs/COMMAND_ALIASES.md) for shortcut commands and CLI aliases.
+
+### 0. Set the API endpoint (once per environment)
+
+```bash
+ConfigList
+ConfigSet api_base_url https://your.opendental.server/api/v1
+```
+
+- `ConfigList` creates `~/.opendental-query/config.json` the first time it runs.
+- The CLI enforces HTTPS; replace the URL with your OpenDental Remote API endpoint.
+- You can tune other defaults later, e.g. `ConfigSet vault.auto_lock_minutes 20`.
+
+### 1. Initialize the encrypted vault
 
 ```bash
 VaultInit
-# Prompts:
-# - Master password
-# - Global DeveloperKey
-
-### 2. Add Office Credentials
-
-```bash
-VaultAdd
-# Prompts:
-# - Office ID
-# - CustomerKey
-
-### 3. Run a Query
-
-```bash
-Query
-# Prompts:
-# - Master password
-# - SQL query
-# - Office selection (ALL or list)
 ```
 
-### 4. Store Results in History
+- Prompts for the master password (twice) and the shared DeveloperKey.
+- Creates `~/.opendental-query/credentials.vault` and leaves it unlocked for the session.
+
+### 2. Add office credentials
 
 ```bash
-QueryTable
-# Prompts for a saved query, runs it, and creates the encrypted table
-
-UpdateTable
-# Runs a saved query again and appends the new rows to its existing history table
-
-TableImport
-# Prompts for a saved query with history and imports rows from Excel
-
-TableExport
-# Prompts for a saved query with history and writes it to Excel (.xlsx)
-TableList
-# Shows stored history tables with metadata and SQL previews
-
-TableDelete
-# Prompts for a saved query with history and deletes its stored table
+VaultAdd office1
+VaultAdd office1,office2,office3
+VaultList
 ```
+
+- Supply one or more office IDs (comma separated). The command prompts for each office's CustomerKey and the vault password if the vault is locked.
+- Use `VaultRemove <office>` to revoke access or `VaultUpdateKey` to rotate the DeveloperKey later.
+
+### 3. (Optional) Save queries for reuse
+
+```bash
+QuerySave                          # guided prompt to create a saved query
+QuerySave list                     # display saved queries and SQL
+QuerySave "Monthly Production"     # run a saved query by name
+```
+
+- Saved queries can include default office selections and descriptions.
+- They are stored alongside the encrypted configuration and history data in `~/.opendental-query`.
+
+### 4. Run a query
+
+```bash
+Query                               # interactive prompt for SQL and offices
+Query -s "SELECT PatNum, LName FROM patient LIMIT 25" -o ALL --export
+Query --saved-query "Monthly Production" --export
+QueryProcCode -p D0120              # run the built-in procedure code template
+```
+
+- When `--sql/-s` is omitted, `Query` opens a multiline prompt.
+- Use `-o office1,office2` or `-o ALL` to select offices.
+- Passing `--export` writes results to an Excel workbook in the secure export directory (defaults to `~/Downloads`, or use `SPEC_KIT_EXPORT_ROOT` to override).
+
+### 5. Manage history and persistence
+
+```bash
+Persist --table monthly_totals --saved-query "Monthly Production" -o ALL
+QueryTable                          # create encrypted history table from a saved query
+UpdateTable                         # rerun a saved query and append to its history
+TableList                           # show stored history tables with metadata
+TableExport                         # export a history table to Excel
+TableImport                         # import Excel rows into an existing history table
+TableDelete                         # remove stored history for a saved query
+```
+
+- History and persistence data are encrypted under `~/.opendental-query`.
+- `Persist` appends rows from ad-hoc or saved queries into a named table for downstream reporting.
 
 ### Shortcut Reference
+
+All console script shortcuts defined in `pyproject.toml`:
 
 | Shortcut | Equivalent CLI | Description |
 |----------|----------------|-------------|
@@ -121,7 +147,8 @@ TableDelete
 | VaultClear | `opendental-query vault clear` | Remove all office credentials without destroying the vault |
 | VaultDestroy | `opendental-query vault destroy` | Permanently delete the vault |
 | Query | `opendental-query query` | Launch the interactive query runner |
-| QuerySave | `opendental-query saved-query` | Manage saved queries via shortcut command |
+| QueryProcCode | `opendental-query query proc-code` | Run the built-in procedure code SQL template |
+| QuerySave | `opendental-query saved-query` | Shortcut to the saved-query command group (interactive by default) |
 | Persist | `opendental-query persist` | Run a query and append results to the encrypted history |
 | Config | `opendental-query config` | Access configuration utilities |
 | ConfigGet | `opendental-query config get` | Read an individual configuration value |
@@ -136,6 +163,7 @@ TableDelete
 | TableList | `opendental-query history list-tables` | List stored history tables |
 | TableExport | `opendental-query history export` | Export history rows to Excel |
 | TableDelete | `opendental-query history delete` | Delete an existing history table |
+
 
 opendental-query history run --sql "<your query>" --offices ALL
 # Persists the results to an encrypted per-query table
@@ -177,4 +205,3 @@ MIT License — see `LICENSE`.
 ## Support
 
 Report issues or feature requests via GitHub Issues.
-
