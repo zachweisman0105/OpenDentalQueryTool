@@ -54,7 +54,7 @@ packaging = [
 [project.scripts]
   opendental-query = "opendental_query.cli.main:cli"
   # Main command shortcuts
-  Query = "opendental_query.cli.query_cmd:query_command"
+  QueryRun = "opendental_query.cli.query_cmd:query_command"
   QueryProcCode = "opendental_query.cli.query_cmd:query_proc_code_command"
   Vault = "opendental_query.cli.shortcuts:vault_shortcut"
 Config = "opendental_query.cli.shortcuts:config_shortcut"
