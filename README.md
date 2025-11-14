@@ -107,13 +107,13 @@ QuerySave "Monthly Production"     # run a saved query by name
 ### 4. Run a query
 
 ```bash
-Query                               # interactive prompt for SQL and offices
-Query -s "SELECT PatNum, LName FROM patient LIMIT 25" -o ALL --export
-Query --saved-query "Monthly Production" --export
+QueryRun                            # interactive prompt for SQL and offices
+QueryRun -s "SELECT PatNum, LName FROM patient LIMIT 25" -o ALL --export
+QuerySave "Monthly Production"      # run a saved query by name
 QueryProcCode -p D0120              # run the built-in procedure code template
 ```
 
-- When `--sql/-s` is omitted, `Query` opens a multiline prompt.
+- When `--sql/-s` is omitted, `QueryRun` opens a multiline prompt.
 - Use `-o office1,office2` or `-o ALL` to select offices.
 - Passing `--export` writes results to an Excel workbook in the secure export directory (defaults to `~/Downloads`, or use `SPEC_KIT_EXPORT_ROOT` to override).
 
@@ -138,30 +138,35 @@ All console script shortcuts defined in `pyproject.toml`:
 
 | Shortcut | Equivalent CLI | Description |
 |----------|----------------|-------------|
+| **Main Commands** | | |
 | Vault | `opendental-query vault` | Open the secure vault command group |
+| Config | `opendental-query config` | Access configuration utilities |
+| Update | `opendental-query check-update` | Check for CLI updates |
+| **Query Commands** | | |
+| QueryRun | `opendental-query query` | Launch the interactive query runner |
+| QueryProcCode | `opendental-query query proc-code` | Run the built-in procedure code SQL template |
+| QuerySave | `opendental-query saved-query` | Manage saved queries (create, list, run) |
+| **Vault Operations** | | |
 | VaultInit | `opendental-query vault init` | Initialize the credential vault |
-| VaultAdd | `opendental-query vault add-office` | Add an office credential to the vault |
+| VaultAdd | `opendental-query vault add-office` | Add one or more office credentials to the vault |
 | VaultRemove | `opendental-query vault remove-office` | Remove an office credential |
 | VaultList | `opendental-query vault list-offices` | List offices stored in the vault |
 | VaultUpdateKey | `opendental-query vault update-developer-key` | Rotate the shared DeveloperKey |
 | VaultClear | `opendental-query vault clear` | Remove all office credentials without destroying the vault |
 | VaultDestroy | `opendental-query vault destroy` | Permanently delete the vault |
-| Query | `opendental-query query` | Launch the interactive query runner |
-| QueryProcCode | `opendental-query query proc-code` | Run the built-in procedure code SQL template |
-| QuerySave | `opendental-query saved-query` | Shortcut to the saved-query command group (interactive by default) |
-| Persist | `opendental-query persist` | Run a query and append results to the encrypted history |
-| Config | `opendental-query config` | Access configuration utilities |
+| **Configuration** | | |
 | ConfigGet | `opendental-query config get` | Read an individual configuration value |
 | ConfigSet | `opendental-query config set` | Update a configuration value |
 | ConfigList | `opendental-query config list` | List all configuration settings |
 | ConfigReset | `opendental-query config reset` | Reset configuration to defaults |
 | ConfigPath | `opendental-query config path` | Display the active configuration file path |
-| Update | `opendental-query check-update` | Check for CLI updates |
+| **History & Persistence** | | |
+| Persist | `opendental-query persist` | Run a query and append results to the encrypted history |
 | QueryTable | `opendental-query history create-table` | Build a history table from a saved query |
 | UpdateTable | `opendental-query history run` | Re-run a saved query and append results |
-| TableImport | `opendental-query history import-table` | Import Excel data into a history table |
 | TableList | `opendental-query history list-tables` | List stored history tables |
 | TableExport | `opendental-query history export` | Export history rows to Excel |
+| TableImport | `opendental-query history import-table` | Import Excel data into a history table |
 | TableDelete | `opendental-query history delete` | Delete an existing history table |
 
 
