@@ -145,7 +145,11 @@ All console script shortcuts defined in `pyproject.toml`:
 | **Query Commands** | | |
 | QueryRun | `opendental-query query` | Launch the interactive query runner |
 | QueryProcCode | `opendental-query query proc-code` | Run the built-in procedure code SQL template |
-| QuerySave | `opendental-query saved-query savesimple` | Quick shortcut to create a saved query |
+| QuerySave | `opendental-query saved-query savesimple` | Create a new saved query (interactive) |
+| QuerySave list | `opendental-query saved-query list --show-sql` | List all saved queries with SQL preview |
+| QuerySave delete | `opendental-query saved-query deleteinteractive` | Interactively delete saved queries |
+| QuerySave edit <name> | `opendental-query saved-query edit <name>` | Edit a saved query by name |
+| QuerySave <name> | `opendental-query saved-query run <name>` | Run a saved query by name |
 | **Vault Operations** | | |
 | VaultInit | `opendental-query vault init` | Initialize the credential vault |
 | VaultAdd | `opendental-query vault add-office` | Add one or more office credentials to the vault |
