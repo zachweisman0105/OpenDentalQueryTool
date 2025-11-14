@@ -145,7 +145,7 @@ All console script shortcuts defined in `pyproject.toml`:
 | **Query Commands** | | |
 | QueryRun | `opendental-query query` | Launch the interactive query runner |
 | QueryProcCode | `opendental-query query proc-code` | Run the built-in procedure code SQL template |
-| QuerySave | `opendental-query saved-query` | Manage saved queries (create, list, run) |
+| QuerySave | `opendental-query saved-query savesimple` | Quick shortcut to create a saved query |
 | **Vault Operations** | | |
 | VaultInit | `opendental-query vault init` | Initialize the credential vault |
 | VaultAdd | `opendental-query vault add-office` | Add one or more office credentials to the vault |
@@ -168,6 +168,66 @@ All console script shortcuts defined in `pyproject.toml`:
 | TableExport | `opendental-query history export` | Export history rows to Excel |
 | TableImport | `opendental-query history import-table` | Import Excel data into a history table |
 | TableDelete | `opendental-query history delete` | Delete an existing history table |
+
+### Complete Command Reference
+
+#### Saved Query Subcommands
+
+Use `opendental-query saved-query <subcommand>` for full control over saved queries:
+
+| Command | Description |
+|---------|-------------|
+| `opendental-query saved-query list` | List all saved queries |
+| `opendental-query saved-query list --show-sql` | List saved queries with SQL preview |
+| `opendental-query saved-query save` | Create a new saved query (interactive prompt) |
+| `opendental-query saved-query savesimple` | Quick save using defaults (same as `QuerySave`) |
+| `opendental-query saved-query show <name>` | Display full details of a saved query |
+| `opendental-query saved-query edit <name>` | Edit an existing saved query |
+| `opendental-query saved-query run <name>` | Execute a saved query |
+| `opendental-query saved-query delete <name>` | Delete a specific saved query |
+| `opendental-query saved-query deleteinteractive` | Interactively select and delete queries |
+
+#### Vault Subcommands
+
+Use `opendental-query vault <subcommand>` or the shortcuts listed above:
+
+| Command | Shortcut | Description |
+|---------|----------|-------------|
+| `opendental-query vault init` | `VaultInit` | Initialize the credential vault |
+| `opendental-query vault add-office` | `VaultAdd` | Add office credentials |
+| `opendental-query vault remove-office` | `VaultRemove` | Remove office credentials |
+| `opendental-query vault list-offices` | `VaultList` | List all offices in vault |
+| `opendental-query vault update-developer-key` | `VaultUpdateKey` | Update the DeveloperKey |
+| `opendental-query vault clear` | `VaultClear` | Remove all offices |
+| `opendental-query vault destroy` | `VaultDestroy` | Delete the vault completely |
+| `opendental-query vault lock` | *(no shortcut)* | Manually lock the vault |
+| `opendental-query vault unlock` | *(no shortcut)* | Manually unlock the vault |
+
+#### Config Subcommands
+
+Use `opendental-query config <subcommand>` or the shortcuts listed above:
+
+| Command | Shortcut | Description |
+|---------|----------|-------------|
+| `opendental-query config get <key>` | `ConfigGet` | Get a configuration value |
+| `opendental-query config set <key> <value>` | `ConfigSet` | Set a configuration value |
+| `opendental-query config list` | `ConfigList` | List all configuration settings |
+| `opendental-query config reset` | `ConfigReset` | Reset configuration to defaults |
+| `opendental-query config path` | `ConfigPath` | Show the configuration file path |
+
+#### History Subcommands
+
+Use `opendental-query history <subcommand>` or the shortcuts listed above:
+
+| Command | Shortcut | Description |
+|---------|----------|-------------|
+| `opendental-query history create-table` | `QueryTable` | Create a history table from a saved query |
+| `opendental-query history run` | `UpdateTable` | Execute and append to history table |
+| `opendental-query history list-tables` | `TableList` | List all history tables |
+| `opendental-query history export` | `TableExport` | Export history table to Excel |
+| `opendental-query history import` | *(no shortcut)* | Import data using SQL key |
+| `opendental-query history import-table` | `TableImport` | Import data using saved query name |
+| `opendental-query history delete` | `TableDelete` | Delete a history table |
 
 
 opendental-query history run --sql "<your query>" --offices ALL
